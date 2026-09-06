@@ -31,6 +31,7 @@ Na versão compilada, interface e API ficam em http://localhost:4020.
 - Roleta com pesos e prêmios monetários configurados pelo administrador, sorteio no servidor e consumo único do giro.
 - Chamados com conversas e encerramento pelo administrador.
 - Central administrativa com usuários, aplicações, cobranças PIX, fila de saques, processamento, regras e auditoria.
+- Exclusão definitiva de participantes ativos ou bloqueados, com confirmação e revogação de todas as sessões. Administradores não podem ser excluídos. Saldos, aplicações ativas e depósitos ou saques pendentes impedem a exclusão até sua resolução. O histórico financeiro, de suporte e de auditoria permanece; indicados diretos ficam sem patrocinador, sem promoção de níveis. Giros não utilizados da conta excluída são removidos.
 
 ## Regras implementadas e decisões explícitas
 

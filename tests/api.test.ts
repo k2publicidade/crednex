@@ -52,6 +52,16 @@ test('API: autenticação, isolamento, regras, PIX idempotente, concorrência e 
     const state=(await call('/admin/state',undefined,admin.token)).body;assert.equal(state.sessions,undefined);assert.ok(state.audit.length);assert.equal(state.users[0].passwordHash,undefined)
     assert.equal((await call(`/admin/users/${alice.user.id}`,{status:'BLOCKED'},admin.token,'PATCH')).status,200)
     assert.equal((await call('/state',undefined,alice.token)).status,401)
-    await call('/auth/logout',{},bob.token);assert.equal((await call('/state',undefined,bob.token)).status,401)
+    assert.equal((await call(`/admin/users/${bob.user.id}`,undefined,undefined,'DELETE')).status,401)
+    assert.equal((await call(`/admin/users/${alice.user.id}`,undefined,bob.token,'DELETE')).status,403)
+    assert.equal((await call(`/admin/users/${admin.user.id}`,undefined,admin.token,'DELETE')).status,403)
+    assert.equal((await call(`/admin/users/${alice.user.id}`,undefined,admin.token,'DELETE')).status,409)
+    assert.equal((await call(`/admin/users/${bob.user.id}`,undefined,admin.token,'DELETE')).status,200)
+    assert.equal((await call('/state',undefined,bob.token)).status,401)
+    assert.equal((await call('/auth/login',{username:'bob',password:'Password-test-2026'})).status,401)
+    assert.equal((await call(`/admin/users/${bob.user.id}`,undefined,admin.token,'DELETE')).status,404)
+    const afterDelete=(await call('/admin/state',undefined,admin.token)).body
+    assert.equal(afterDelete.users.some((u:any)=>u.id===bob.user.id),false)
+    assert.ok(afterDelete.audit.some((a:any)=>a.action==='USER_DELETED'&&a.details.userId===bob.user.id))
   } finally {globalThis.fetch=nativeFetch;await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));fs.rmSync(dir,{recursive:true,force:true})}
 })

@@ -8,3 +8,5 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 .brand .brand-mark{display:block;width:42px;height:40px;position:relative;overflow:hidden;flex-shrink:0}.brand .brand-mark img{position:absolute;width:84px;height:84px;max-width:none;object-fit:contain;left:-25px;top:-9px;clip-path:none;transform:none;mix-blend-mode:screen}
 
+
+.participant-actions{display:flex;gap:8px;flex-wrap:wrap}.outline.danger{color:#f2bfc5;border-color:#6b363c}.outline.danger:hover{background:#3d2225}
