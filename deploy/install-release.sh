@@ -31,7 +31,10 @@ systemctl enable crednex crednex-backup.timer nginx >/dev/null
 systemctl restart crednex
 healthy=0
 for attempt in {1..15}; do
-  if curl --fail --silent http://127.0.0.1:4020/api/health >/dev/null; then healthy=1; break; fi
+  if curl --fail --silent http://127.0.0.1:4020/api/health >/dev/null &&
+    test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X DELETE http://127.0.0.1:4020/api/admin/users/deployment-probe)" = 401; then
+    healthy=1; break
+  fi
   sleep 1
 done
 if test "$healthy" = 0; then

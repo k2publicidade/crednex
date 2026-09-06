@@ -16,7 +16,7 @@ Não executar múltiplas instâncias contra o arquivo JSON. Escala horizontal ex
 
 ## Construir e instalar
 
-Execute `npm test` e `npm run build` no ambiente de desenvolvimento. Empacote apenas `build/crednex-server.cjs`, `dist/` e `deploy/`, sem `.env`, `.data`, dependências ou contas de revisão. Copie o pacote via SCP e extraia para um novo diretório em `/opt/crednex/releases`.
+Execute `npm run build` e `npm test` (o teste smoke precisa de `dist/` compilado) no ambiente de desenvolvimento. Empacote apenas `build/crednex-server.cjs`, `dist/` e `deploy/`, sem `.env`, `.data`, dependências ou contas de revisão. Copie o pacote via SCP e extraia para um novo diretório em `/opt/crednex/releases`.
 
 ```sh
 bash /opt/crednex/releases/ID/deploy/install-release.sh /opt/crednex/releases/ID
@@ -25,6 +25,12 @@ curl --fail http://127.0.0.1:4020/api/health
 ```
 
 O script cria o ambiente uma única vez, preserva dados e segredos, troca o link da versão ativa e verifica a saúde. Se a nova versão não responder, tenta voltar à versão anterior.
+
+### Interface na Vercel e API no servidor
+
+O push no GitHub atualiza a interface na Vercel. As chamadas `/api/*` são encaminhadas pelo `vercel.json` para este servidor: o backend também precisa ser publicado quando suas rotas mudam. Apenas publicar a interface pode exibir novos botões com erro `Rota não encontrada`.
+
+Além do health, o instalador verifica a rota de exclusão sem autenticação e com identificador fictício: `DELETE /api/admin/users/deployment-probe` deve retornar **401**, nunca 404. Nenhuma conta é excluída nesse teste. Após instalar, repita a verificação em `https://crednex.vercel.app/api/admin/users/deployment-probe` para validar o encaminhamento público.
 
 ## Domínio e HTTPS
 
