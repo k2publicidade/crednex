@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.data/
+.server.log
+.server.err.log
+*.local
+.env
+.env.*
+!.env.example
+WhatsApp Image*.jpeg
+*.tsbuildinfo
+.claude/
+.codex/
+.codex-dev*.log
+.dev-ui*.log
+output/
+tmp/
+.vercel/
+CREDNEX - APRESENTAÇÃO.pdf
+
+.vercel
+.env*

@@ -1,0 +1,25 @@
+# Replace CREDNEX_DOMAIN with the verified hostname, then issue HTTPS via certbot.
+server {
+    listen 80;
+    server_name CREDNEX_DOMAIN;
+    server_tokens off;
+    client_max_body_size 64k;
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / {
+        proxy_pass http://127.0.0.1:4020;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+    # The webhook secret appears in its URL. Never write its query string to logs.
+    location ^~ /api/webhooks/ {
+        access_log off;
+        proxy_pass http://127.0.0.1:4020;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

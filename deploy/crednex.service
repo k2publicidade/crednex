@@ -1,0 +1,28 @@
+[Unit]
+Description=CREDNEX financial portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=crednex
+Group=crednex
+WorkingDirectory=/opt/crednex/current
+EnvironmentFile=/etc/crednex/crednex.env
+ExecStart=/usr/bin/node /opt/crednex/current/build/crednex-server.cjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crednex
+MemoryMax=512M
+TasksMax=128
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

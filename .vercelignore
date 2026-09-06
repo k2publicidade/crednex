@@ -1,0 +1,13 @@
+.env*
+.data/
+.git/
+node_modules/
+build/
+dist/
+tmp/
+output/
+.codex/
+.claude/
+*.log
+*.pdf
+WhatsApp Image*
