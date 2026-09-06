@@ -32,7 +32,9 @@ systemctl restart crednex
 healthy=0
 for attempt in {1..15}; do
   if curl --fail --silent http://127.0.0.1:4020/api/health >/dev/null &&
-    test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X DELETE http://127.0.0.1:4020/api/admin/users/deployment-probe)" = 401; then
+    test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X DELETE http://127.0.0.1:4020/api/admin/users/deployment-probe)" = 401 &&
+    test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:4020/api/admin/deposits/deployment-probe/approve)" = 401 &&
+    test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:4020/api/admin/users/deployment-probe/balance)" = 401; then
     healthy=1; break
   fi
   sleep 1

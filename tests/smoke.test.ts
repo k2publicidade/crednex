@@ -101,6 +101,29 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     const cronOk = await nativeFetch(`${base}/cron/accrue`, {headers: {Authorization: `Bearer ${process.env.CRON_SECRET}`}})
     assert.equal(cronOk.status, 200)
     assert.equal((await call('/admin/process', {}, adminToken)).status, 200)
+    // Aprovação e crédito administrativo: autorização, repetição e webhook tardio.
+    const pending = (await call('/deposits', {amount: 40, document: '12345678901'}, maria.token)).body
+    const approval = `/admin/deposits/${pending.id}/approve`
+    const balanceUrl = `/admin/users/${maria.user.id}/balance`
+    const initialBalance = (await call('/state', undefined, maria.token)).body.balances.deposit
+    assert.equal((await call(approval, {reference: 'Conferência PIX'}, maria.token)).status, 403)
+    assert.equal((await call(balanceUrl, {amount: 10}, maria.token)).status, 403)
+    assert.equal((await call(approval, {reference: 'Conferência PIX'})).status, 401)
+    assert.equal((await call(approval, {reference: ''}, adminToken)).status, 422)
+    const approvals = await Promise.all([1,2].map(() => call(approval, {reference: 'Comprovante conferido'}, adminToken)))
+    assert.ok(approvals.every(r => r.status === 200))
+    assert.equal(approvals.filter(r => r.body.credited).length, 1)
+    assert.equal((await call(webhookUrl, {transactionId: pending.providerId, amount: '40.00', status: 'COMPLETED'})).body.credited, false)
+    const creditBody = {amount: '12.34', reason: 'Ajuste de saldo conferido', requestId: 'test-credit-request-001'}
+    const credits = await Promise.all([1,2].map(() => call(balanceUrl, creditBody, adminToken)))
+    assert.ok(credits.every(r => r.status === 200))
+    assert.equal(credits.filter(r => r.body.credited).length, 1)
+    assert.equal((await call(balanceUrl, {...creditBody, amount: 99}, adminToken)).status, 422)
+    assert.equal((await call(balanceUrl, {...creditBody, amount: -1, requestId: 'invalid-credit-request'}, adminToken)).status, 422)
+    assert.equal((await call('/state', undefined, maria.token)).body.balances.deposit, initialBalance + 5234)
+    const adminState = (await call('/admin/state', undefined, adminToken)).body
+    assert.equal(adminState.audit.filter((a: any) => a.action === 'PIX_MANUALLY_APPROVED').length, 1)
+    assert.equal(adminState.audit.filter((a: any) => a.action === 'BALANCE_ADDED').length, 1)
     // Troca de senha invalida todas as sessões
     assert.equal((await call('/profile', {currentPassword: 'errada', newPassword: 'Nova-senha-2026-nova'}, maria.token, 'PATCH')).status, 422)
     assert.equal((await call('/profile', {currentPassword: 'Password-smoke-2026', newPassword: 'Nova-senha-2026-nova'}, maria.token, 'PATCH')).status, 200)

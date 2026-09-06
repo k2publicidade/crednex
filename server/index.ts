@@ -5,6 +5,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import {createStore} from './store.js'
 import {deleteParticipant} from './accounts.js'
+import {approveDeposit,addParticipantBalance} from './admin-payments.js'
 import {confirmDeposit,attachPayment,reviewStaleDeposits} from './payments.js'
 import {emptyDb,id,entry,balance,subscribe,accrue,redeem,withdraw,settleWithdrawal,network,salary,draw,audit,type Db,type Account} from './engine.js'
 import {amount,PLANS,validatePlanLimits,type Rules} from '../src/rules.js'
@@ -41,6 +42,8 @@ route('post','/api/tickets/:id/reply',(db,req)=>{const user=account(db,req),tick
 app.post('/api/deposits',async(req,res,next)=>{let depositId='';try{const intent=await store.transaction(db=>{const user=account(db,req),cents=amount(req.body.amount),document=normalizeCustomerDocument(req.body.document);if(cents<db.rules.depositMin)throw new Error('Depósito mínimo de R$40,00');pixPayConfig();const item={id:id(),userId:user.id,cents,status:'CREATING',at:new Date().toISOString()};db.deposits.push(item);depositId=item.id;return {item,name:user.name,email:user.email,document}});const payment=await createPixPayTransaction({amount:intent.item.cents/100,customerName:intent.name,customerEmail:intent.email,customerDocument:intent.document,depositId:intent.item.id});const result=await store.transaction(db=>{return attachPayment(db,depositId,payment)});res.json(result)}catch(e){if(depositId)await store.transaction(db=>{const d=db.deposits.find(d=>d.id===depositId);if(d&&d.status==='CREATING')d.status='REVIEW_REQUIRED'});next(e)}})
 route('post',['/api/webhooks/2pp','/api/webhooks/pixpay'],(db,req)=>{if(!verifyPixPayWebhookToken(req.query.token))throw Object.assign(new Error('Webhook inválido'),{status:401});return confirmDeposit(db,req.body,typeof req.query.depositId==='string'?req.query.depositId:undefined)})
 route('get','/api/admin/state',(db,req)=>{account(db,req,true);accrue(db);reviewStaleDeposits(db);return {...db,users:db.users.map(safe),sessions:undefined}})
+route('post','/api/admin/deposits/:id/approve',(db,req)=>approveDeposit(db,account(db,req,true).id,String(req.params.id),req.body.reference))
+route('post','/api/admin/users/:id/balance',(db,req)=>addParticipantBalance(db,account(db,req,true).id,String(req.params.id),req.body))
 route('delete','/api/admin/users/:id',(db,req)=>deleteParticipant(db,account(db,req,true).id,String(req.params.id)))
 route('patch','/api/admin/users/:id',(db,req)=>{const admin=account(db,req,true),user=db.users.find(u=>u.id===req.params.id&&u.role!=='ADMIN_MASTER');if(!user||!['ACTIVE','BLOCKED'].includes(req.body.status))throw new Error('Usuário ou estado inválido');user.status=req.body.status;audit(db,admin.id,'USER_STATUS',{userId:user.id,status:user.status});return safe(user)})
 route('post','/api/admin/withdrawals/:id',(db,req)=>{const admin=account(db,req,true);settleWithdrawal(db,String(req.params.id),String(req.body.status),String(req.body.reference||''));audit(db,admin.id,'WITHDRAWAL_SETTLED',{id:req.params.id,status:req.body.status});return {ok:true}})
