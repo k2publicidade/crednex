@@ -39,22 +39,22 @@ A mensagem do usuário prevalece sobre o PDF. O PDF contém ciclos antigos de 30
 
 | Modalidade | Valor | Prazo | Taxa simples diária |
 |---|---|---|---|
-| C-1 | R$25 a R$100 | 35 dias | 8% |
-| C-2 | R$100 a R$500 | 35 dias | 9% |
-| C-3 | R$500 a R$1.500 | 35 dias | 10% |
+| Cred-c1 | R$25 a R$100 | 30 dias | 6% |
+| Cred-c2 | R$100 a R$500 | 30 dias | 6,5% |
+| Cred-c3 | R$500 a R$1.500 | 30 dias | 7% |
 | NEX-N1 a N5 | R$50 / R$100 / R$250 / R$500 / R$1.500 | 50 dias | 4% |
 | Credcofre | A partir de R$25 | Sem prazo fixo | 2% |
 
 - R$40 é o mínimo para depósitos PIX. O saldo permite contratar aplicações de R$25.
 - Os intervalos dos ciclos são inclusivos. Em R$100 ou R$500, vale o plano escolhido pelo participante.
 - Rendimentos em centavos, arredondados para baixo por parcela, a cada 24 horas completas desde a contratação. Sem juros compostos e sem crédito proporcional por horas.
-- Os ciclos devolvem o capital à carteira de rendimentos ao encerrar o dia 35, disponível para saque ou reinvestimento. O lucro é creditado diariamente na carteira de rendimentos.
+- Os ciclos devolvem o capital à carteira de rendimentos ao encerrar o dia 30, disponível para saque ou reinvestimento. O lucro é creditado diariamente na carteira de rendimentos.
 - **NEX:** a devolução do capital não foi definida pelo usuário; o administrador escolhe antes de liberar aplicações. A configuração inicial está desativada. O contrato captura a configuração vigente.
 - Credcofre: principal fica bloqueado para saque enquanto a aplicação rende. O resgate encerra a aplicação imediatamente e libera o principal na carteira Credcofre. Rendimentos ficam disponíveis sem encerrar o capital. Não há resgate parcial do principal; aplicações podem ser abertas separadamente.
 - Saques: rendimentos de segunda a sexta; Credcofre todos os dias. Janela `[12:00,18:00)` em `America/Sao_Paulo`. Taxa de 10% sobre o valor bruto, arredondada para o centavo mais próximo. O saldo bruto é reservado na solicitação; recusa devolve uma única vez.
 - Comissão inicial configurada sobre o valor de cada aplicação confirmada, incluindo reinvestimentos e Credcofre; alternativa sobre os rendimentos. Níveis 10%, 3% e 2%, sem compressão: um nível inelegível não transfere sua comissão. Beneficiário precisa ser participante ativo com aplicação vigente. Essas escolhas aguardam revisão administrativa porque o usuário não definiu a base.
 - Salário inicial por **indicados diretos**, opção de rede inteira no painel. Ativo = conta ativa com aplicação vigente. Maior faixa elegível no processamento, um pagamento por mês civil; não há complemento automático por promoção no mesmo mês. Bronze R$75 (5/10), Prata R$150 (10/25), Ouro R$350 (20/50), Diamante R$850 (35/100). Contagem e calendário são decisões operacionais explicitadas, ainda sujeitas à definição da empresa.
-- Um giro pela primeira ativação do indicado, para patrocinador elegível; um giro por aplicação paga com a carteira de rendimentos. Prêmios e probabilidades aguardam cadastro; nenhum prêmio foi inventado.
+- Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros. Giros antigos fora dessa regra ficam cancelados; resultados já utilizados permanecem no histórico. Prêmios e probabilidades aguardam cadastro; nenhum prêmio foi inventado.
 - Suporte: segunda a sexta, 12h–18h; sábado e domingo, 12h–15h. Abertura de chamados disponível a qualquer hora.
 
 ## PIX e operação externa
@@ -81,4 +81,8 @@ Testes automatizados de catálogo, dinheiro, ciclos, NEX, juros simples, princip
 
 Em **Regras e roleta**, o administrador define o máximo de aplicações ativas por participante em cada plano (padrão: 2; inteiro positivo). A alteração vale para novas contratações e preserva contratos existentes. A API verifica o limite dentro da transação, inclusive em pedidos simultâneos. Encerrar um ciclo libera uma vaga; no Credcofre, o resgate libera a vaga.
 
-Os cartões e a confirmação exibem a ocupação atual. A confirmação calcula a projeção conforme o valor informado, usando o mesmo arredondamento diário do extrato. O total do período soma os rendimentos diários e o capital devolvido quando aplicável; não representa um crédito único no vencimento. As aplicações exibem dias restantes, vencimento e retorno conforme as condições contratadas. Exemplo: R$55 no C-1 = R$4,40/dia, R$154 em rendimentos em 35 dias e R$55 de capital, total bruto de R$209. O Credcofre não apresenta total final fixo.
+Os cartões e a confirmação exibem a ocupação atual. A confirmação calcula a projeção conforme o valor informado, usando o mesmo arredondamento diário do extrato. O total do período soma os rendimentos diários e o capital devolvido quando aplicável; não representa um crédito único no vencimento. As aplicações exibem dias restantes, vencimento e retorno conforme as condições contratadas. Exemplo: R$55 no Cred-c1 = R$3,30/dia, R$99 em rendimentos em 30 dias e R$55 de capital, total bruto de R$154. O Credcofre não apresenta total final fixo.
+
+As novas condições dos ciclos valem para novas contratações. Contratos existentes continuam usando a taxa, duração e capital registrados na contratação. Os identificadores internos C-1/C-2/C-3 são preservados para manter histórico e limites.
+
+Participantes: busca, edição de nome/usuário/e-mail/chave PIX, saldos e histórico financeiro; redefinição administrativa de senha com encerramento de sessões e auditoria sem senha. Cadastro e troca de senha aceitam 8 a 128 caracteres. O grupo de WhatsApp é configurado em Atendimento e seu link é apresentado aos participantes autenticados.

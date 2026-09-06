@@ -1,9 +1,9 @@
 export const TIMEZONE = 'America/Sao_Paulo'
 export const DAY = 86_400_000
 export const PLANS = [
-  { id:'C-1', family:'cycle', days:35, min:2500, max:10000, bps:800 },
-  { id:'C-2', family:'cycle', days:35, min:10000, max:50000, bps:900 },
-  { id:'C-3', family:'cycle', days:35, min:50000, max:150000, bps:1000 },
+  { id:'C-1', family:'cycle', days:30, min:2500, max:10000, bps:600 },
+  { id:'C-2', family:'cycle', days:30, min:10000, max:50000, bps:650 },
+  { id:'C-3', family:'cycle', days:30, min:50000, max:150000, bps:700 },
   ...[5000,10000,25000,50000,150000].map((value,i)=>({id:`NEX-N${i+1}`,family:'daily',days:50,min:value,max:value,bps:400})),
   {id:'CREDCOFRE',family:'vault',days:0,min:2500,max:100_000_000,bps:200},
 ] as const
@@ -50,3 +50,5 @@ export function projectedReturn(principal:number,bps:number,days:number,returnPr
 export function remainingDays(startedAt:string,days:number,at=new Date()) {
   return days?Math.max(0,Math.ceil((Date.parse(startedAt)+days*DAY-at.getTime())/DAY)):null
 }
+
+export const planName=(id:string)=>({'C-1':'Cred-c1','C-2':'Cred-c2','C-3':'Cred-c3'} as Record<string,string>)[id]||id

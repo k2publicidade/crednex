@@ -8,7 +8,15 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["server/**/*.ts", "src/rules.ts", "src/types.ts"]
+  "include": [
+    "server/**/*.ts",
+    "src/rules.ts",
+    "src/types.ts",
+    "src/security.ts",
+    "src/support.ts"
+  ]
 }

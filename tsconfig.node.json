@@ -8,7 +8,17 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["vite.config.ts", "server", "src/rules.ts", "src/types.ts"]
+  "include": [
+    "vite.config.ts",
+    "server",
+    "src/rules.ts",
+    "src/types.ts",
+    "src/security.ts",
+    "src/support.ts",
+    "src/phone.ts"
+  ]
 }

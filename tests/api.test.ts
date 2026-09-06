@@ -17,6 +17,17 @@ test('API: autenticação, isolamento, regras, PIX idempotente, concorrência e 
     assert.ok(admin.token);assert.equal(admin.user.passwordHash,undefined)
     for(const username of ['alice','bob'])assert.equal((await call('/auth/register',{name:username,username,email:`${username}@test.local`,password:'Password-test-2026'})).status,200)
     const alice=(await call('/auth/login',{username:'alice',password:'Password-test-2026'})).body,bob=(await call('/auth/login',{username:'bob',password:'Password-test-2026'})).body
+    assert.match(alice.user.inviteCode,/^[a-z0-9]+$/i)
+    assert.match(alice.user.inviteCode,/[a-z]/i)
+    assert.match(alice.user.inviteCode,/[0-9]/)
+    for(const inviteCode of ['cred-nex','cred nex','crednex!',123,{code:'crednex'}]){
+      const invalid=await call('/auth/register',{name:'Convidado',username:'guest',email:'guest@test.local',password:'Password-test-2026',inviteCode})
+      assert.equal(invalid.status,422)
+      assert.equal(invalid.body.error,'Código de indicação deve conter apenas letras e números')
+    }
+    assert.equal((await call('/auth/register',{name:'Convidado',username:'guest',email:'guest@test.local',password:'Password-test-2026',inviteCode:alice.user.inviteCode})).status,200)
+    const guest=(await call('/auth/login',{username:'guest',password:'Password-test-2026'})).body
+    assert.equal(guest.user.sponsorId,alice.user.id)
     assert.equal((await call('/admin/state',undefined,alice.token)).status,403)
     assert.equal((await call('/contracts',{planId:'C-1',amount:25,wallet:'deposit'},alice.token)).status,422)
     const rules=(await call('/public')).body.rules;rules.confirmed=true;rules.returnPrincipal=true
