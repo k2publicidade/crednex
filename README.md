@@ -86,3 +86,12 @@ Os cartões e a confirmação exibem a ocupação atual. A confirmação calcula
 As novas condições dos ciclos valem para novas contratações. Contratos existentes continuam usando a taxa, duração e capital registrados na contratação. Os identificadores internos C-1/C-2/C-3 são preservados para manter histórico e limites.
 
 Participantes: busca, edição de nome/usuário/e-mail/chave PIX, saldos e histórico financeiro; redefinição administrativa de senha com encerramento de sessões e auditoria sem senha. Cadastro e troca de senha aceitam 8 a 128 caracteres. O grupo de WhatsApp é configurado em Atendimento e seu link é apresentado aos participantes autenticados.
+
+## Carteiras e saques
+
+- Carteira de Saldo (`deposit`): depósitos PIX e créditos administrativos para compras de pacotes, sem saque.
+- Carteira de Rendimentos (`earnings`): indicações, bônus, salários, roleta e rendimentos de todos os planos, inclusive Credcofre. Reinvestimentos com ganhos continuam permitidos.
+- Credcofre (`vault`): guarda apenas capital aplicado. Resgatar devolve o principal à carteira de origem; capital depositado continua não sacável. A devolução de principal dos ciclos e NEX segue a mesma regra.
+- Solicitar e aprovar um saque exige conta ativa e pacote ativo não vencido. Só `earnings` é aceito; permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar libera a reserva mesmo sem pacote ativo.
+
+A migração `walletPolicyVersion=1` preserva lançamentos históricos e saques pagos. Reconstrói a origem do capital por compra/devolução, adiciona transferências auditadas do principal remanescente para Saldo e move ganhos antigos do Credcofre para Rendimentos. Em saldos históricos mistos, débitos comuns consomem ganhos primeiro; reinvestimentos consomem o principal restrito primeiro, preservando sua origem no contrato. Reservas antigas do Credcofre ou incompatíveis com o capital restrito são recusadas e devolvidas para nova solicitação. A migração executa uma vez dentro da transação do banco.

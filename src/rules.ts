@@ -31,7 +31,7 @@ export function amount(value:unknown) {
 export function withdrawalOpen(wallet:Wallet,date=new Date()) {
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:TIMEZONE,weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(date)
   const day=parts.find(p=>p.type==='weekday')?.value, hour=Number(parts.find(p=>p.type==='hour')?.value)
-  return hour>=12&&hour<18&&(wallet==='vault'||!['Sat','Sun'].includes(day||''))
+  return wallet==='earnings'&&hour>=12&&hour<18&&!['Sat','Sun'].includes(day||'')
 }
 export const fee=(cents:number)=>Math.round(cents*0.1)
 export function rankFor(active:number,total:number) { return [...RANKS].reverse().find(r=>active>=r.active&&total>=r.total) }

@@ -8,7 +8,8 @@ test('contrato legado preserva os 35 dias e 8% registrados, sem adotar o novo ca
  db.contracts.push({id:'legacy',userId:'old-user',planId:'C-1',principal:10000,bps:800,days:35,paidDays:0,startedAt:'2026-01-01T00:00:00Z',status:'ACTIVE',returnPrincipal:true,commissionBase:'deposit'})
  accrue(db,new Date('2026-03-01T00:00:00Z'))
  assert.equal(db.contracts[0].paidDays,35)
- assert.equal(balance(db,'old-user','earnings'),38000)
+ assert.equal(balance(db,'old-user','earnings'),28000)
+ assert.equal(balance(db,'old-user','deposit'),10000)
  assert.equal(accrue(db,new Date('2026-03-02T00:00:00Z')),0)
 })
 test('limites rejeitam valores inválidos e planos ausentes ou desconhecidos',()=>{
