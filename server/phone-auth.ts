@@ -21,7 +21,7 @@ export function installPhoneAuth(app:Express,store:ReturnType<typeof createStore
           if(typeof code!=='string'||!/^[a-z0-9]+$/i.test(code))throw new Error('Código de indicação deve conter apenas letras e números')
           const sponsor=db.users.find(u=>u.inviteCode===code&&u.status==='ACTIVE')
           if(!sponsor)throw new Error('Convite inválido')
-          user={id:id(),phone,name:'Participante',username:'tel_'+crypto.randomBytes(12).toString('hex'),email:'',passwordHash:hash(password),role:'ASSOCIATE',status:'ACTIVE',sponsorId:sponsor.id,inviteCode:invite(db)}
+          user={id:id(),phone,name:'',username:'tel_'+crypto.randomBytes(12).toString('hex'),email:'',passwordHash:hash(password),role:'ASSOCIATE',status:'ACTIVE',sponsorId:sponsor.id,inviteCode:invite(db)}
           db.users.push(user);audit(db,user.id,'REGISTER',{method:'phone'})
         }else if(!user||user.status!=='ACTIVE'||typeof password!=='string'||!verify(password,user.passwordHash)){
           throw Object.assign(new Error('Telefone ou senha incorretos'),{status:401})
