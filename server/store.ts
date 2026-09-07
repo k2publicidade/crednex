@@ -1,3 +1,4 @@
+import {initialPlans} from '../src/catalog.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import {neon} from '@neondatabase/serverless'
@@ -26,7 +27,7 @@ function parsePayload(value: unknown): Db {
   const parsed = typeof value === 'string' ? JSON.parse(value) : JSON.parse(JSON.stringify(value ?? null))
   const base = emptyDb()
   // Forward compatibility: fields added in newer releases get safe defaults when missing.
-  return {...base, ...parsed, walletPolicyVersion:parsed?.walletPolicyVersion??0, rules: {...base.rules, ...(parsed?.rules ?? {}), activePlanLimits: {...base.rules.activePlanLimits, ...(parsed?.rules?.activePlanLimits ?? {})}}}
+  return {...base, ...parsed, plans:parsed?.plans??initialPlans(), walletPolicyVersion:parsed?.walletPolicyVersion??0, rules: {...base.rules, ...(parsed?.rules ?? {}), activePlanLimits: {...base.rules.activePlanLimits, ...(parsed?.rules?.activePlanLimits ?? {})}}}
 }
 
 export function createStore(seed: () => Db, options?: {databaseUrl?: string; executor?: Executor}) {
@@ -82,8 +83,10 @@ export function createStore(seed: () => Db, options?: {databaseUrl?: string; exe
           const db = parsePayload(rows[0]?.payload ?? seed())
           const version = rows[0]?.version ?? 0
           const before = JSON.stringify(db)
+          if(!db.plans)db.plans=initialPlans()
+          for(const c of db.contracts){const p=initialPlans().find(p=>p.id===c.planId)??db.plans.find(p=>p.id===c.planId);c.family??=p?.family;c.planName??=p?.name}
           migrateWalletPolicy(db)
-      const result = await fn(db)
+          const result = await fn(db)
           const after = JSON.stringify(db)
           if (before === after) return result // no mutation: nothing to persist
           const updated = await executor({...SQL_UPDATE, values: [after, version]})
@@ -96,6 +99,8 @@ export function createStore(seed: () => Db, options?: {databaseUrl?: string; exe
       const loaded = loadFile()
       const db = loaded.db
       const before = JSON.stringify(db)
+      if(!db.plans)db.plans=initialPlans()
+      for(const c of db.contracts){const p=initialPlans().find(p=>p.id===c.planId)??db.plans.find(p=>p.id===c.planId);c.family??=p?.family;c.planName??=p?.name}
       migrateWalletPolicy(db)
       const result = await fn(db)
       const after = JSON.stringify(db)

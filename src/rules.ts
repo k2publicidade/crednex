@@ -37,11 +37,11 @@ export const fee=(cents:number)=>Math.round(cents*0.1)
 export function rankFor(active:number,total:number) { return [...RANKS].reverse().find(r=>active>=r.active&&total>=r.total) }
 
 export function activePlanLimit(rules:Rules,planId:string) {return rules.activePlanLimits?.[planId] ?? 2}
-export function validatePlanLimits(value:unknown):Record<string,number> {
+export function validatePlanLimits(value:unknown,plans:ReadonlyArray<{id:string}>=PLANS):Record<string,number> {
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Informe os limites de aplicações por plano')
   const limits=value as Record<string,number>
-  if(Object.keys(limits).length!==PLANS.length||PLANS.some(p=>!Number.isSafeInteger(limits[p.id])||limits[p.id]<1))throw new Error('Cada plano deve ter um limite inteiro positivo de aplicações ativas')
-  return Object.fromEntries(PLANS.map(p=>[p.id,limits[p.id]]))
+  if(Object.keys(limits).length!==plans.length||plans.some(p=>!Number.isSafeInteger(limits[p.id])||limits[p.id]<1))throw new Error('Cada plano deve ter um limite inteiro positivo de aplicações ativas')
+  return Object.fromEntries(plans.map(p=>[p.id,limits[p.id]]))
 }
 export function projectedReturn(principal:number,bps:number,days:number,returnPrincipal:boolean) {
   const daily=Math.floor(principal*bps/10000),earnings=daily*days,capital=returnPrincipal?principal:0

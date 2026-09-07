@@ -14,7 +14,7 @@
   },
   "include": [
     "server/**/*.ts",
-    "src/rules.ts",
+    "src/rules.ts", "src/catalog.ts",
     "src/types.ts",
     "src/security.ts",
     "src/support.ts"
