@@ -1,1 +1,1 @@
-export interface User {id:string;name:string;username:string;email:string;phone?:string;role:'ADMIN_MASTER'|'ASSOCIATE';status:'ACTIVE'|'BLOCKED';sponsorId:string|null;inviteCode:string;pixKey?:string}
+export interface User {id:string;name:string;username:string;email:string;phone?:string;role:'ADMIN_MASTER'|'ADMIN_VIEWER'|'ASSOCIATE';status:'ACTIVE'|'BLOCKED';sponsorId:string|null;inviteCode:string;pixKey?:string}
