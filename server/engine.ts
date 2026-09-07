@@ -1,7 +1,7 @@
 import {initialPlans,returnsPrincipal,type Plan,type PlanFamily} from '../src/catalog.js'
 import {DEFAULT_SUPPORT,type SupportSettings} from '../src/support.js'
 import crypto from 'node:crypto'
-import {activePlanLimit,DAY,LEVELS,DEFAULT_RULES,rankFor,withdrawalOpen,fee,type Wallet,type Rules} from '../src/rules.js'
+import {activePlanLimit,DAY,PLANS,LEVELS,DEFAULT_RULES,rankFor,withdrawalOpen,fee,type Wallet,type Rules} from '../src/rules.js'
 import type {User} from '../src/types.js'
 export type Account=User & {passwordHash:string}
 export interface Entry {id:string;key:string;userId:string;wallet:Wallet;cents:number;description:string;at:string}
@@ -33,7 +33,8 @@ export function userSpins(db:Db,userId:string) {
   return db.spins.filter(s=>s.userId===userId).map(s=>{
     if(s.status!=='AVAILABLE')return s
     const contract=db.contracts.find(c=>s.key===`reinvestment:${c.id}`&&c.userId===userId)
-    const valid=contract&&db.ledger.some(e=>e.key===`${contract.id}:purchase`&&e.userId===userId&&e.wallet==='earnings'&&e.cents===-contract.principal)
+    const family=contract?.family??PLANS.find(p=>p.id===contract?.planId)?.family
+    const valid=contract&&(family==='cycle'||family==='daily')&&db.ledger.some(e=>e.key===`${contract.id}:purchase`&&e.userId===userId&&e.wallet==='earnings'&&e.cents===-contract.principal)
     return valid?s:{...s,status:'CANCELLED'}
   })
 }
@@ -56,7 +57,7 @@ export function subscribe(db:Db,userId:string,planId:string,cents:number,wallet:
   db.contracts.push(contract)
   if(plan.family==='vault')entry(db,userId,'vault',cents,`${contract.id}:principal`,'Capital no Credcofre',at.toISOString())
   if(db.rules.commissionBase==='deposit')commissions(db,userId,cents,contract.id,at.toISOString())
-  if(wallet==='earnings')spin(db,userId,`reinvestment:${contract.id}`)
+  if(wallet==='earnings'&&(plan.family==='cycle'||plan.family==='daily'))spin(db,userId,`reinvestment:${contract.id}`)
   return contract
 }
 export function accrue(db:Db,at=new Date()) {
