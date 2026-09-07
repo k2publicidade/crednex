@@ -18,13 +18,14 @@ export function entry(db:Db,userId:string,wallet:Wallet,cents:number,key:string,
 }
 export function audit(db:Db,actor:string,action:string,details:unknown) {db.audit.push({id:id(),actor,action,details,at:new Date().toISOString()})}
 export function eligible(db:Db,userId:string) {return db.users.some(u=>u.id===userId&&u.status==='ACTIVE'&&u.role==='ASSOCIATE')&&db.contracts.some(c=>c.userId===userId&&c.status==='ACTIVE')}
+export function activeAssociate(db:Db,userId:string) {return db.users.some(u=>u.id===userId&&u.status==='ACTIVE'&&u.role==='ASSOCIATE')}
 function commissions(db:Db,userId:string,cents:number,key:string,at:string) {
   let current=db.users.find(u=>u.id===userId); const seen=new Set([userId])
   for(let level=0;level<3;level++) {
     current=db.users.find(u=>u.id===current?.sponsorId)
     if(!current||seen.has(current.id))break
     seen.add(current.id)
-    if(eligible(db,current.id)) entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
+    if(activeAssociate(db,current.id)) entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
   }
 }
 function spin(db:Db,userId:string,key:string) {if(!db.spins.some(s=>s.key===key))db.spins.push({id:id(),key,userId,status:'AVAILABLE',at:new Date().toISOString()})}
