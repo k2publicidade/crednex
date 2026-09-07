@@ -42,6 +42,22 @@ test('gestão: cadastro com 8 caracteres, edição, redefinição e suporte com 
     assert.equal((await call('/auth/login',{username:'cliente.novo',password:'Senha123'})).status,401)
     const renewed=(await call('/auth/login',{username:'cliente.novo',password:'Nova1234'})).body
     assert.ok(renewed.token)
+    const rules=(await call('/public')).body.rules
+    await call('/admin/rules',{...rules,confirmed:true},admin.token,'PATCH')
+    const grant={planId:'C-1',amount:25,source:'grant',reason:'Inclusão administrativa',requestId:'api-contract-request-01'}
+    assert.equal((await call(url+'/contracts',grant,renewed.token)).status,403)
+    assert.equal((await call(url+'/contracts',{...grant,amount:1000},admin.token)).status,422)
+    assert.equal((await call('/state',undefined,renewed.token)).body.balances.deposit,0)
+    const contract=(await call(url+'/contracts',grant,admin.token)).body
+    assert.ok(contract.id)
+    assert.equal((await call(url+'/contracts',grant,admin.token)).body.id,contract.id)
+    const patch={action:'edit',planId:'C-1',amount:25,rate:3,days:20,returnPrincipal:true,revision:0,reason:'Ajustar condições'}
+    assert.equal((await call(url+'/contracts/'+contract.id,patch,renewed.token,'PATCH')).status,403)
+    assert.equal((await call(url+'/contracts/'+contract.id,{...patch,amount:40},admin.token,'PATCH')).status,422)
+    assert.equal((await call(url+'/contracts/'+contract.id,patch,admin.token,'PATCH')).status,200)
+    assert.equal((await call('/state',undefined,renewed.token)).body.contracts[0].bps,300)
+    assert.equal((await call(url+'/contracts/'+contract.id,{action:'close',refund:true,revision:1,reason:'Encerrar aplicação'},admin.token,'PATCH')).status,200)
+    assert.equal((await call('/state',undefined,renewed.token)).body.balances.deposit,2500)
     assert.equal((await call('/state',undefined,renewed.token)).body.support.whatsappGroupUrl,'')
     const settings={whatsappGroupUrl:'https://chat.whatsapp.com/TestInvite123'}
     assert.equal((await call('/admin/support',settings,renewed.token,'PATCH')).status,403)

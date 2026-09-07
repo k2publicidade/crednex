@@ -1,4 +1,5 @@
 import {catalog,savePlan} from './catalog.js'
+import {assignContract,editContract} from './admin-contracts.js'
 import 'dotenv/config'
 import express,{type Request,type Response,type NextFunction} from 'express'
 import crypto from 'node:crypto'
@@ -50,6 +51,8 @@ app.post('/api/deposits',async(req,res,next)=>{let depositId='';try{const intent
 route('post',['/api/webhooks/2pp','/api/webhooks/pixpay'],(db,req)=>{if(!verifyPixPayWebhookToken(req.query.token))throw Object.assign(new Error('Webhook inválido'),{status:401});return confirmDeposit(db,req.body,typeof req.query.depositId==='string'?req.query.depositId:undefined)})
 route('get','/api/admin/state',(db,req)=>{account(db,req,true);accrue(db);reviewStaleDeposits(db);return {...db,plans:catalog(db),users:db.users.map(safe),sessions:undefined}})
 route('post','/api/admin/plans',(db,req)=>savePlan(db,account(db,req,true).id,req.body))
+route('post','/api/admin/users/:id/contracts',(db,req)=>assignContract(db,account(db,req,true).id,String(req.params.id),req.body))
+route('patch','/api/admin/users/:id/contracts/:contractId',(db,req)=>editContract(db,account(db,req,true).id,String(req.params.id),String(req.params.contractId),req.body))
 route('patch','/api/admin/plans/:id',(db,req)=>savePlan(db,account(db,req,true).id,req.body,String(req.params.id)))
 route('post','/api/admin/deposits/:id/approve',(db,req)=>approveDeposit(db,account(db,req,true).id,String(req.params.id),req.body.reference))
 route('post','/api/admin/users/:id/balance',(db,req)=>addParticipantBalance(db,account(db,req,true).id,String(req.params.id),req.body))

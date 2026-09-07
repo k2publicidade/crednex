@@ -134,7 +134,7 @@ export function draw(db:Db,userId:string,random=(max:number)=>crypto.randomInt(m
 export function canWithdraw(db:Db,userId:string,at=new Date()) {
   return db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')&&db.contracts.some(c=>c.userId===userId&&c.status==='ACTIVE'&&Date.parse(c.startedAt)<=at.getTime()&&(!c.days||Date.parse(c.startedAt)+c.days*DAY>at.getTime()))
 }
-function returnCapital(db:Db,c:Contract,at:Date) {
+export function returnCapital(db:Db,c:Contract,at:Date) {
   const restricted=c.balancePrincipal??(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?0:c.principal)
   if(restricted)entry(db,c.userId,'deposit',restricted,`${c.id}:return:deposit`,`Capital devolvido à Carteira de Saldo · ${c.planId}`,at.toISOString())
   if(c.principal>restricted)entry(db,c.userId,'earnings',c.principal-restricted,`${c.id}:return`,`Capital de rendimentos devolvido · ${c.planId}`,at.toISOString())
