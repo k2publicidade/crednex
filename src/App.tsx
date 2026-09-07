@@ -1,3 +1,4 @@
+import {AdminOverviewMetrics} from './AdminOverviewMetrics'
 import {Participants} from './Participants'
 import {SupportPanel} from './SupportPanel'
 import {DEFAULT_SUPPORT} from './support'
@@ -65,7 +66,7 @@ export default function App(){
   {page==='support'&&support(data.tickets)}
   </>}
   {isAdmin&&adminData&&<>
-  {page==='overview'&&<><div className="stats-grid"><Stat label="Participantes" value={String(adminData.users.filter((u:Row)=>u.role==='ASSOCIATE').length)} detail="Contas cadastradas"/><Stat label="PIX confirmados" value={money(adminData.deposits.filter((d:Row)=>d.status==='PAID').reduce((s:number,d:Row)=>s+d.cents,0))} detail="Entradas PIX confirmadas" accent/><Stat label="Saques pendentes" value={money(adminData.withdrawals.filter((w:Row)=>w.status==='PENDING').reduce((s:number,w:Row)=>s+w.net,0))} detail="Total líquido a pagar"/><Stat label="Aplicações ativas" value={String(adminData.contracts.filter((c:Row)=>c.status==='ACTIVE').length)} detail="Ciclos, NEX e Credcofre"/></div><div className="admin-actions"><div><h2>Processamento financeiro</h2><p>O servidor processa os vencimentos automaticamente. A execução manual também evita créditos duplicados.</p></div><button className="primary" onClick={()=>void act(()=>api.post('/admin/process',{}),'Rendimentos e salários processados')}><RefreshCw size={18}/>Processar agora</button></div><div className="panel"><h2>Movimentação da operação</h2>{ledgerTable([...adminData.ledger].reverse().slice(0,20))}</div></>}
+  {page==='overview'&&<><AdminOverviewMetrics data={adminData}/><div className="admin-actions"><div><h2>Processamento financeiro</h2><p>O servidor processa os vencimentos automaticamente. A execução manual também evita créditos duplicados.</p></div><button className="primary" onClick={()=>void act(()=>api.post('/admin/process',{}),'Rendimentos e salários processados')}><RefreshCw size={18}/>Processar agora</button></div><div className="panel"><h2>Movimentação da operação</h2>{ledgerTable([...adminData.ledger].reverse().slice(0,20))}</div></>}
   {page==='users'&&<Participants data={adminData} save={(id,values)=>act(()=>api.patch(`/admin/users/${id}`,values),'Cadastro atualizado')} resetPassword={(id,values)=>act(()=>api.post(`/admin/users/${id}/password`,values),'Senha redefinida. O participante deve entrar com a nova senha.')} open={open} contractsTable={contractTable} ledgerTable={ledgerTable}/>}
 
   {page==='contracts'&&<div className="panel"><h2>Todas as aplicações</h2>{contractTable(adminData.contracts)}</div>}
