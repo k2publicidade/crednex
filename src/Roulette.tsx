@@ -50,6 +50,6 @@ export function Roulette({prizes,spins,draw,refresh}:{prizes:Prize[];spins:numbe
       {error&&<p className="alert error" role="alert">{error} Confira o histórico antes de tentar novamente.</p>}
       {!prizes.length?<p>Prêmios em preparação. Seus giros ficam guardados.</p>:!spins?<p>Você ainda não tem giros. Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros.</p>:<p><ShieldCheck size={13}/> Resultado confirmado com segurança.</p>}
     </div>
-    <details className="luck-rules"><summary>Como funciona e chances dos prêmios</summary><p>Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros. Os segmentos são ilustrativos; as chances seguem os pesos abaixo.</p>{prizes.map((p,i)=><div key={i}><span>{p.label}</span><strong>{(p.weight/prizes.reduce((s,p)=>s+p.weight,0)*100).toFixed(2)}%</strong></div>)}</details>
+    <details className="luck-rules"><summary>Como funciona</summary><p>Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros. Os prêmios são sorteados de forma segura e registrados no seu histórico.</p></details>
   </section>
 }
