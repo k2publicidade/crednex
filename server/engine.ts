@@ -4,7 +4,7 @@ import {activePlanLimit,DAY,PLANS,LEVELS,DEFAULT_RULES,rankFor,withdrawalOpen,fe
 import type {User} from '../src/types.js'
 export type Account=User & {passwordHash:string}
 export interface Entry {id:string;key:string;userId:string;wallet:Wallet;cents:number;description:string;at:string}
-export interface Contract {balancePrincipal?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
+export interface Contract {requestId?:string;balancePrincipal?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
 export interface Db {walletPolicyVersion?:number;version:number;support:SupportSettings;users:Account[];sessions:Record<string,{userId:string;expires:number}>;rules:Rules;ledger:Entry[];contracts:Contract[];deposits:any[];withdrawals:any[];tickets:any[];spins:any[];audit:any[];salaryMonths:string[]}
 export const id=()=>crypto.randomUUID()
 export const emptyDb=():Db=>({walletPolicyVersion:1,version:1,support:{...DEFAULT_SUPPORT},users:[],sessions:{},rules:structuredClone(DEFAULT_RULES),ledger:[],contracts:[],deposits:[],withdrawals:[],tickets:[],spins:[],audit:[],salaryMonths:[]})
@@ -36,7 +36,12 @@ export function userSpins(db:Db,userId:string) {
     return valid?s:{...s,status:'CANCELLED'}
   })
 }
-export function subscribe(db:Db,userId:string,planId:string,cents:number,wallet:Wallet,at=new Date()) {
+export function subscribe(db:Db,userId:string,planId:string,cents:number,wallet:Wallet,at=new Date(),requestId?:string) {
+  if(requestId!==undefined){
+    if(typeof requestId!=='string'||! /^[a-zA-Z0-9-]{16,80}$/.test(requestId))throw new Error('Identificador da compra inválido')
+    const previous=db.contracts.find(c=>c.userId===userId&&c.requestId===requestId)
+    if(previous){if(previous.planId!==planId||previous.principal!==cents||db.ledger.find(e=>e.key===`${previous.id}:purchase`)?.wallet!==wallet)throw new Error('Identificador já utilizado em outra compra');return previous}
+  }
   if(!db.rules.confirmed)throw new Error('As regras operacionais aguardam definição pelo administrador')
   const plan=PLANS.find(p=>p.id===planId)
   if(!plan||!Number.isSafeInteger(cents)||cents<plan.min||cents>plan.max)throw new Error('Valor incompatível com o plano selecionado')
@@ -44,7 +49,7 @@ export function subscribe(db:Db,userId:string,planId:string,cents:number,wallet:
   const active=db.contracts.filter(c=>c.userId===userId&&c.planId===planId&&c.status==='ACTIVE').length
   const limit=activePlanLimit(db.rules,planId)
   if(active>=limit)throw new Error(`Limite de aplicações ativas em ${planId} atingido (${active}/${limit}). Aguarde o encerramento de uma aplicação para investir novamente.`)
-  const contract:Contract={balancePrincipal:wallet==='deposit'?cents:0,id:id(),userId,planId,principal:cents,bps:plan.bps,days:plan.days,paidDays:0,startedAt:at.toISOString(),status:'ACTIVE',returnPrincipal:plan.family==='cycle'||db.rules.returnPrincipal,commissionBase:db.rules.commissionBase}
+  const contract:Contract={...(requestId?{requestId}:{}),balancePrincipal:wallet==='deposit'?cents:0,id:id(),userId,planId,principal:cents,bps:plan.bps,days:plan.days,paidDays:0,startedAt:at.toISOString(),status:'ACTIVE',returnPrincipal:plan.family==='cycle'||db.rules.returnPrincipal,commissionBase:db.rules.commissionBase}
   entry(db,userId,wallet,-cents,`${contract.id}:purchase`,`Aplicação ${planId}`,at.toISOString())
   db.contracts.push(contract)
   if(plan.family==='vault')entry(db,userId,'vault',cents,`${contract.id}:principal`,'Capital no Credcofre',at.toISOString())

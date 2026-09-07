@@ -95,3 +95,9 @@ Participantes: busca, edição de nome/usuário/e-mail/chave PIX, saldos e hist�
 - Solicitar e aprovar um saque exige conta ativa e pacote ativo não vencido. Só `earnings` é aceito; permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar libera a reserva mesmo sem pacote ativo.
 
 A migração `walletPolicyVersion=1` preserva lançamentos históricos e saques pagos. Reconstrói a origem do capital por compra/devolução, adiciona transferências auditadas do principal remanescente para Saldo e move ganhos antigos do Credcofre para Rendimentos. Em saldos históricos mistos, débitos comuns consomem ganhos primeiro; reinvestimentos consomem o principal restrito primeiro, preservando sua origem no contrato. Reservas antigas do Credcofre ou incompatíveis com o capital restrito são recusadas e devolvidas para nova solicitação. A migração executa uma vez dentro da transação do banco.
+
+### Contratações e comissões
+
+A opção administrativa de liberar aplicações precisa estar ativa (`rules.confirmed`). Para pausar compras já ativas, a API exige `pauseConfirmation: "PAUSAR COMPRAS"`; a interface alerta sobre o bloqueio e solicita essa confirmação, evitando pausas acidentais ao editar regras. Uma pausa não altera saldos nem contratos.
+
+O checkout envia `requestId` por tentativa: repetir a mesma compra retorna o contrato existente sem repetir débito ou comissões. Reutilizar a chave com plano, valor ou carteira diferentes é rejeitado. O teste `purchase-flow.test.ts` verifica o fluxo PIX confirmado → contrato → comissões de 10%, 3% e 2% na Carteira de Rendimentos dos beneficiários elegíveis (conta e pacote ativos), incluindo chamadas concorrentes e callback duplicado. Depósito isolado não gera comissão quando a base configurada é aplicação.

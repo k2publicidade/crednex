@@ -90,14 +90,8 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     const vault = await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'deposit'}, maria.token)
     assert.equal((await call('/vault/redeem', {contractId: vault.body.id}, maria.token)).status, 200)
     const wd = await call('/withdrawals', {wallet: 'vault', amount: 25, pixKey: 'maria@smoke.local'}, maria.token)
-    const hour = new Intl.DateTimeFormat('en-US', {timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23'}).format(new Date())
-    if (Number(hour) >= 12 && Number(hour) < 18) {
-      assert.equal(wd.status, 200)
-      assert.equal(wd.body.net, 2250)
-      assert.equal((await call(`/admin/withdrawals/${wd.body.id}`, {status: 'PAID', reference: 'COMP-001'}, adminToken)).status, 200)
-    } else {
-      assert.equal(wd.status, 422, 'janela fechada deve recusar o saque')
-    }
+    assert.equal(wd.status, 422, 'capital depositado não pode ser sacado pelo Credcofre')
+    assert.match(wd.body.error, /Somente a Carteira de Rendimentos/)
     // Suporte: abertura e encerramento administrativo
     const ticket = (await call('/tickets', {subject: 'Dúvida sobre rendimento', message: 'Quando cai?'}, maria.token)).body
     const reply = await call(`/tickets/${ticket.id}/reply`, {message: 'Em até 24h úteis.', close: true}, adminToken)
