@@ -5,30 +5,25 @@ import {PLANS,DAY,amount,withdrawalOpen,rankFor} from '../src/rules.js'
 const start=new Date('2026-09-01T15:00:00Z')
 function fixture(){const db=emptyDb();db.rules.confirmed=true;db.users.push({id:'a',name:'Ana',username:'ana',email:'a@test.local',passwordHash:'',role:'ASSOCIATE',status:'ACTIVE',sponsorId:null,inviteCode:'ana'});entry(db,'a','deposit',10000000,'fund','Teste');return db}
 
-test('roleta exclusiva de reinvestimentos em todos os planos Ciclo e Rendimento Diário',()=>{
+test('roleta: reinvestimento com rendimentos gera um giro em qualquer plano',()=>{
   for(const plan of PLANS)for(const wallet of ['deposit','earnings'] as const){
     const db=fixture();entry(db,'a','earnings',plan.min,'earn','Teste')
     const contract=subscribe(db,'a',plan.id,plan.min,wallet,start)
-    const expected=wallet==='earnings'&&plan.family!=='vault'?1:0
+    const expected=wallet==='earnings'?1:0
     assert.equal(db.spins.length,expected,`${plan.id} / ${wallet}`)
     if(expected)assert.equal(db.spins[0].key,`reinvestment:${contract.id}`)
   }
 })
 
-test('giros antigos inelegíveis são cancelados na consulta e recusados no sorteio',()=>{
+test('giros de depósito e ativação ficam cancelados; reinvestimento em qualquer plano permanece',()=>{
   const db=fixture();db.rules.prizes=[{label:'R$1',cents:100,weight:1}]
   entry(db,'a','earnings',10000,'earn','Teste')
   const vault=subscribe(db,'a','CREDCOFRE',2500,'earnings',start)
   const deposit=subscribe(db,'a','C-1',2500,'deposit',start)
-  db.spins.push(...[`reinvestment:${vault.id}`,`reinvestment:${deposit.id}`,'activation:b'].map((key,i)=>({id:`old-${i}`,key,userId:'a',status:'AVAILABLE'})))
+  db.spins.push(...[`reinvestment:${deposit.id}`,'activation:b'].map((key,i)=>({id:`old-${i}`,key,userId:'a',status:'AVAILABLE'})))
   db.spins.push({id:'used',key:'activation:old',userId:'a',status:'USED',prize:db.rules.prizes[0]})
-  assert.deepEqual(userSpins(db,'a').map(s=>s.status),['CANCELLED','CANCELLED','CANCELLED','USED'])
-  const before=balance(db,'a','earnings')
-  assert.throws(()=>draw(db,'a',()=>0),/Nenhum giro disponível/)
-  assert.equal(balance(db,'a','earnings'),before)
-  const valid=subscribe(db,'a','NEX-N1',5000,'earnings',start)
-  valid.status='CLOSED'
-  assert.equal(draw(db,'a',()=>0).key,`reinvestment:${valid.id}`)
+  assert.deepEqual(userSpins(db,'a').map(s=>s.status),['AVAILABLE','CANCELLED','CANCELLED','USED'])
+  assert.equal(draw(db,'a',()=>0).key,`reinvestment:${vault.id}`)
   assert.throws(()=>draw(db,'a',()=>0),/Nenhum giro disponível/)
   assert.equal(db.spins.at(-1).status,'USED')
 })

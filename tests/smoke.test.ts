@@ -76,9 +76,12 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     assert.ok(commission && commission.cents === 5000, 'comissão nível 1 de R$50,00')
     assert.equal(mariaAfter.spins.filter((s: any) => s.status === 'AVAILABLE').length, 0)
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
+    // Reinvestimento em Credcofre (rendimentos) também libera um giro
     assert.equal((await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
-    assert.equal((await call('/state', undefined, maria.token)).body.spins.length, 0)
+    assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
+    assert.equal((await call('/spins/draw', {}, maria.token)).status, 200)
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
+    // Reinvestimento em ciclo também libera um giro
     assert.equal((await call('/contracts', {planId: 'C-1', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
     assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
     // Roleta: um giro por token
