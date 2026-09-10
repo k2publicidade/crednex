@@ -12,7 +12,7 @@ function fixture(){
   db.withdrawals.push({id:'w',userId:'u',wallet:'earnings',cents:4000,net:3600,pixKey:'test@example.test',status:'PENDING'})
   return db
 }
-const details={pixKeyType:'email' as const,customerDocument:'12345678901'}
+const details={pixKeyType:'email' as const,customerDocument:'52998224725'}
 const event={transactionId:'p',amount:'36.00',netAmount:'33.00',type:'PAY_OUT',paymentMethod:'pix',status:'COMPLETED'}
 
 test('uma reserva permite somente um envio; callback antes da resposta não regride nem duplica',()=>{

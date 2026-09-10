@@ -5,7 +5,7 @@ import {createPixPayWithdrawal,validatePayout} from '../server/pixpay-withdrawal
 test('saída PIX segue contrato 2PP, transmite centavos corretamente e não repete timeout',async()=>{
   const names=['PIXPAY_API_KEY','PIXPAY_API_SECRET','PIXPAY_WEBHOOK_TOKEN','APP_PUBLIC_URL','PIXPAY_BASE_URL']
   const previous=Object.fromEntries(names.map(n=>[n,process.env[n]])),original=globalThis.fetch
-  const input={withdrawalId:'local-test',amountCents:3600,pixKey:'test@example.test',pixKeyType:'email' as const,customerDocument:'12345678901'}
+  const input={withdrawalId:'local-test',amountCents:3600,pixKey:'test@example.test',pixKeyType:'email' as const,customerDocument:'52998224725'}
   try {
     Object.assign(process.env,{PIXPAY_API_KEY:'test',PIXPAY_API_SECRET:'test',PIXPAY_WEBHOOK_TOKEN:'x'.repeat(40),APP_PUBLIC_URL:'https://example.test',PIXPAY_BASE_URL:'https://webhookxxx.2pp.online'})
     let calls=0
