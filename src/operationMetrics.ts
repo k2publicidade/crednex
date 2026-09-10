@@ -13,7 +13,7 @@ export function operationMetrics(data: Row, now = new Date()) {
   for (const log of data.audit as Row[]) if(log.action==='REGISTER'&&!registration.has(log.actor)) registration.set(log.actor,log.at)
   const newUsers = users.filter(u=>operationDay(u.createdAt??registration.get(u.id))===day)
   const deposits:Row[] = data.deposits.filter((d:Row)=>d.status==='PAID')
-  const withdrawals:Row[] = data.withdrawals.filter((w:Row)=>w.status==='PAID')
+  const withdrawals:Row[] = data.withdrawals.filter((w:Row)=>w.status==='PAID').map((w:Row)=>({...w,net:w.gatewayNet??w.net}))
   const depositDate = (d:Row)=>d.confirmedAt??data.ledger.find((e:Row)=>e.key===`deposit:${d.id}`)?.at
   const sum=(rows:Row[],key:string)=>rows.reduce((s,r)=>s+(Number.isSafeInteger(r[key])&&r[key]>0?r[key]:0),0)
   const activeContracts=(data.contracts as Row[]).filter(c=>c.status==='ACTIVE')

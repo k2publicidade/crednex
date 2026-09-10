@@ -1,4 +1,6 @@
 import {catalog,savePlan} from './catalog.js'
+import {createPixPayWithdrawal} from './pixpay-withdrawals.js'
+import {claimPayout,applyPayout,markPayoutUncertain} from './payouts.js'
 import {assignContract,editContract} from './admin-contracts.js'
 import 'dotenv/config'
 import express,{type Request,type Response,type NextFunction} from 'express'
@@ -67,6 +69,30 @@ route('post','/api/admin/process',(db,req)=>{const admin=master(db,req);const co
 route('patch','/api/admin/rules',(db,req)=>{const admin=master(db,req),r=req.body as Rules;if(db.rules.confirmed&&!r.confirmed&&req.body.pauseConfirmation!=='PAUSAR COMPRAS')throw new Error('Para desativar contratações, confirme digitando PAUSAR COMPRAS. Salvar outras regras não deve bloquear os participantes');if(typeof r.confirmed!=='boolean'||typeof r.returnPrincipal!=='boolean'||r.depositMin!==4000||r.withdrawalMin!==4000||!['deposit','earnings'].includes(r.commissionBase)||!['direct','network'].includes(r.salaryScope)||!Array.isArray(r.prizes)||r.prizes.length>20)throw new Error('Configuração inválida');if(r.prizes.some(p=>typeof p.label!=='string'||!p.label.trim()||!Number.isSafeInteger(p.cents)||p.cents<0||p.cents>1000000||!Number.isInteger(p.weight)||p.weight<1)||r.prizes.reduce((s,p)=>s+p.weight,0)>1000000)throw new Error('Prêmios ou pesos inválidos');db.rules={activePlanLimits:validatePlanLimits(r.activePlanLimits ?? db.rules.activePlanLimits,catalog(db)),confirmed:r.confirmed,depositMin:4000,withdrawalMin:4000,returnPrincipal:r.returnPrincipal,commissionBase:r.commissionBase,salaryScope:r.salaryScope,prizes:r.prizes.map(p=>({label:p.label.slice(0,80),cents:p.cents,weight:p.weight}))};audit(db,admin.id,'RULES_UPDATED',db.rules);return db.rules})
 route('get','/api/cron/accrue',(db,req)=>{const secret=process.env.CRON_SECRET;if(!secret||secret.length<24||req.headers.authorization!==`Bearer ${secret}`)throw Object.assign(new Error('Acesso negado'),{status:401});const count=accrue(db);salary(db);return {count}})
 app.get('/api/health',(_req,res)=>res.json({ok:true,service:'CREDNEX'}))
+app.post('/api/admin/withdrawals/:id/pay',async(req,res,next)=>{
+  const id=String(req.params.id)
+  try {
+    const input=await store.transaction(db=>{
+      const admin=master(db,req)
+      pixPayConfig()
+      return claimPayout(db,id,admin.id,req.body)
+    })
+    try {
+      const payment=await createPixPayWithdrawal(input)
+      const result=await store.transaction(db=>applyPayout(db,id,payment))
+      res.json(result)
+    } catch(error) {
+      await store.transaction(db=>markPayoutUncertain(db,id))
+      throw error
+    }
+  } catch(error){next(error)}
+})
+route('post','/api/webhooks/2pp/withdrawals',(db,req)=>{
+  if(!verifyPixPayWebhookToken(req.query.token))throw Object.assign(new Error('Webhook inválido'),{status:401})
+  if(typeof req.query.withdrawalId!=='string')throw new Error('Referência ausente')
+  applyPayout(db,req.query.withdrawalId,req.body?.data,true)
+  return {ok:true}
+})
 app.use('/api',(_req,res)=>res.status(404).json({error:'Rota não encontrada'}))
 app.use((error:any,_req:Request,res:Response,_next:NextFunction)=>{res.status(error.status||422).json({error:error.message||'Falha na operação'})})
 const dist=path.resolve('dist');if(fs.existsSync(dist)){app.use(express.static(dist));app.get(/.*/,(_req,res)=>res.sendFile(path.join(dist,'index.html')))}

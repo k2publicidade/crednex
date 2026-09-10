@@ -108,6 +108,7 @@ export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,pixKey:s
 export function settleWithdrawal(db:Db,requestId:string,status:string,reference:string,at=new Date()) {
   const w=db.withdrawals.find(w=>w.id===requestId)
   if(!w||w.status!=='PENDING')throw new Error('Saque não encontrado ou já concluído')
+  if(w.payoutState)throw new Error('Saque enviado ao gateway: aguarde a confirmação ou concilie com a 2PP')
   if(!['PAID','REJECTED'].includes(status)||!reference.trim())throw new Error('Informe o comprovante ou motivo')
   if(status==='PAID'&&(w.wallet!=='earnings'||!canWithdraw(db,w.userId,at)))throw new Error('Pagamento bloqueado: o saque exige Carteira de Rendimentos e pacote ativo')
   if(status==='REJECTED')entry(db,w.userId,w.wallet,w.cents,`${w.id}:refund`,'Saque recusado: saldo devolvido')
