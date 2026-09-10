@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {neon} from '@neondatabase/serverless'
 import {emptyDb,migrateWalletPolicy,type Db} from './engine.js'
+import {validDocument} from './pixpay-withdrawals.js'
 
 // Serialized local transactions; PostgreSQL uses optimistic concurrency across instances.
 // Every write is retried automatically when another instance commits first, so routine
@@ -27,7 +28,14 @@ function parsePayload(value: unknown): Db {
   const parsed = typeof value === 'string' ? JSON.parse(value) : JSON.parse(JSON.stringify(value ?? null))
   const base = emptyDb()
   // Forward compatibility: fields added in newer releases get safe defaults when missing.
-  return {...base, ...parsed, plans:parsed?.plans??initialPlans(), walletPolicyVersion:parsed?.walletPolicyVersion??0, rules: {...base.rules, ...(parsed?.rules ?? {}), activePlanLimits: {...base.rules.activePlanLimits, ...(parsed?.rules?.activePlanLimits ?? {})}}}
+  const normalized={...base, ...parsed, plans:parsed?.plans??initialPlans(), walletPolicyVersion:parsed?.walletPolicyVersion??0, rules: {...base.rules, ...(parsed?.rules ?? {}), activePlanLimits: {...base.rules.activePlanLimits, ...(parsed?.rules?.activePlanLimits ?? {})}}}
+  for(const user of normalized.users){
+    if(!user.cpf&&typeof user.pixKey==='string'){
+      const candidate=user.pixKey.replace(/\D/g,'')
+      if(candidate.length===11&&validDocument(candidate))user.cpf=candidate
+    }
+  }
+  return normalized
 }
 
 export function createStore(seed: () => Db, options?: {databaseUrl?: string; executor?: Executor}) {
