@@ -3,6 +3,7 @@ import {DEFAULT_SUPPORT,type SupportSettings} from '../src/support.js'
 import crypto from 'node:crypto'
 import {activePlanLimit,DAY,PLANS,LEVELS,DEFAULT_RULES,rankFor,withdrawalOpen,fee,type Wallet,type Rules} from '../src/rules.js'
 import type {User} from '../src/types.js'
+import {normalizeCpf} from '../src/security.js'
 export type Account=User & {passwordHash:string}
 export interface Entry {id:string;key:string;userId:string;wallet:Wallet;cents:number;description:string;at:string}
 export interface Contract {planName?:string;family?:PlanFamily;requestId?:string;balancePrincipal?:number;compoundBalance?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
@@ -94,13 +95,14 @@ export function redeem(db:Db,userId:string,contractId:string,at=new Date()) {
   c.status='CLOSED'
   audit(db,userId,'VAULT_REDEEM',{contractId})
 }
-export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,pixKey:string,at=new Date()) {
+export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,_pixKey?:string,at=new Date()) {
   if(wallet!=='earnings')throw new Error('Somente a Carteira de Rendimentos permite saques. Depósitos não podem ser sacados')
   if(!canWithdraw(db,userId,at))throw new Error('É necessário ter um pacote ativo para sacar')
   if(!withdrawalOpen(wallet,at))throw new Error('Fora da janela de saques: 12h às 18h, horário de Brasília')
-  if(!Number.isSafeInteger(cents)||cents<db.rules.withdrawalMin||!pixKey.trim())throw new Error(`O saque mínimo é de R$ ${(db.rules.withdrawalMin/100).toFixed(2).replace('.',',')}`)
+  const user=db.users.find(u=>u.id===userId),cpf=normalizeCpf(user?.cpf)
+  if(!Number.isSafeInteger(cents)||cents<db.rules.withdrawalMin)throw new Error(`O saque mínimo é de R$ ${(db.rules.withdrawalMin/100).toFixed(2).replace('.',',')}`)
   if(balance(db,userId,'earnings')<cents)throw new Error('Saldo insuficiente na Carteira de Rendimentos')
-  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:pixKey.trim(),status:'PENDING',at:at.toISOString()}
+  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:cpf,pixKeyType:'cpf' as const,customerDocument:cpf,status:'PENDING',at:at.toISOString()}
   if(request.net<=0)throw new Error('Valor líquido inválido')
   entry(db,userId,wallet,-cents,`${request.id}:reserve`,'Reserva para saque PIX',at.toISOString())
   db.withdrawals.push(request); return request

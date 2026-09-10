@@ -2,11 +2,11 @@ import {entry,audit,canWithdraw,type Db} from './engine.js'
 import {amount} from '../src/rules.js'
 import {validatePayout,type PixKeyType} from './pixpay-withdrawals.js'
 
-export function claimPayout(db:Db,id:string,actor:string,details:{pixKeyType:PixKeyType;customerDocument:string}) {
+export function claimPayout(db:Db,id:string,actor:string,_details?:{pixKeyType?:PixKeyType;customerDocument?:string}) {
   const w=db.withdrawals.find(w=>w.id===id)
   if(!w||w.status!=='PENDING'||w.payoutState)throw new Error('Saque já enviado ou indisponível. Confira a conciliação.')
   if(!canWithdraw(db,w.userId))throw new Error('O participante precisa ter pacote ativo para sacar')
-  const input=validatePayout({withdrawalId:id,amountCents:w.net,pixKey:w.pixKey,pixKeyType:details.pixKeyType,customerDocument:details.customerDocument})
+  const input=validatePayout({withdrawalId:id,amountCents:w.net,pixKey:w.pixKey,pixKeyType:'cpf',customerDocument:w.customerDocument||w.pixKey})
   w.payoutState='SUBMITTING';w.payoutAt=new Date().toISOString();w.pixKeyType=input.pixKeyType
   audit(db,actor,'PAYOUT_SUBMITTED',{id})
   return input

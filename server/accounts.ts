@@ -1,6 +1,6 @@
 import {audit,balance,type Db} from './engine.js'
 import {hash} from './passwords.js'
-import {validPassword} from '../src/security.js'
+import {validPassword,normalizeCpf} from '../src/security.js'
 import {normalizePhone} from '../src/phone.js'
 
 function editableParticipant(db:Db,adminId:string,userId:string){
@@ -13,7 +13,7 @@ function editableParticipant(db:Db,adminId:string,userId:string){
 export function updateParticipant(db:Db,adminId:string,userId:string,values:Record<string,unknown>){
   const user=editableParticipant(db,adminId,userId),changes:Record<string,string>={}
   for(const key of Object.keys(values)){
-    if(!['name','username','email','phone','pixKey','status'].includes(key))throw new Error('Campo de cadastro inválido')
+    if(!['name','username','email','phone','cpf','pixKey','status'].includes(key))throw new Error('Campo de cadastro inválido')
     if(typeof values[key]!=='string')throw new Error('Dados do cadastro inválidos')
     changes[key]=(values[key] as string).trim()
   }
@@ -26,8 +26,9 @@ export function updateParticipant(db:Db,adminId:string,userId:string,values:Reco
   }
   if('email' in changes){changes.email=changes.email.toLowerCase();if(changes.email.length>254||(!changes.email?!(changes.phone||user.phone):!/^\S+@\S+\.\S+$/.test(changes.email)))throw new Error('E-mail inválido')}
   if('pixKey' in changes&&changes.pixKey.length>150)throw new Error('Chave PIX muito longa')
+  if('cpf' in changes)changes.cpf=normalizeCpf(changes.cpf)
   if('status' in changes&&!['ACTIVE','BLOCKED'].includes(changes.status))throw new Error('Situação inválida')
-  if(db.users.some(u=>u.id!==userId&&((changes.username&&u.username.toLowerCase()===changes.username)||(changes.email&&u.email.toLowerCase()===changes.email)||(changes.phone&&u.phone===changes.phone))))throw new Error('Usuário, telefone ou e-mail já cadastrado')
+  if(db.users.some(u=>u.id!==userId&&((changes.username&&u.username.toLowerCase()===changes.username)||(changes.email&&u.email.toLowerCase()===changes.email)||(changes.phone&&u.phone===changes.phone)||(changes.cpf&&u.cpf===changes.cpf))))throw new Error('Usuário, telefone, CPF ou e-mail já cadastrado')
   Object.assign(user,changes)
   if(changes.status==='BLOCKED')for(const [key,s] of Object.entries(db.sessions))if(s.userId===userId)delete db.sessions[key]
   audit(db,adminId,'USER_UPDATED',{userId,fields:Object.keys(changes)})

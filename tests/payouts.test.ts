@@ -9,7 +9,7 @@ function fixture(){
   db.contracts.push({userId:'u',status:'ACTIVE',startedAt:'2026-01-01',days:0} as any)
   entry(db,'u','earnings',4000,'credit','test')
   entry(db,'u','earnings',-4000,'w:reserve','test')
-  db.withdrawals.push({id:'w',userId:'u',wallet:'earnings',cents:4000,net:3600,pixKey:'test@example.test',status:'PENDING'})
+  db.withdrawals.push({id:'w',userId:'u',wallet:'earnings',cents:4000,net:3600,pixKey:'52998224725',customerDocument:'52998224725',status:'PENDING'})
   return db
 }
 const details={pixKeyType:'email' as const,customerDocument:'52998224725'}
