@@ -1,6 +1,7 @@
 import {ArrowDownLeft,ArrowUpRight,Users,ShieldCheck} from 'lucide-react'
 import {operationMetrics} from './operationMetrics'
 import './admin-overview.css'
+import './admin-overview-layout.css'
 
 const money=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100)
 export function AdminOverviewMetrics({data}:{data:Record<string,any>}) {
