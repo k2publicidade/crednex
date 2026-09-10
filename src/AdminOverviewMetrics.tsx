@@ -10,6 +10,7 @@ export function AdminOverviewMetrics({data}:{data:Record<string,any>}) {
     {label:'Cadastros ativos',icon:ShieldCheck,today:String(m.todayActive),total:String(m.totalActive),hint:'Dos cadastros de hoje, com conta ativa',tone:'active'},
     {label:'Entradas de caixa',icon:ArrowDownLeft,today:money(m.todayIn),total:money(m.totalIn),hint:'Depósitos PIX confirmados · valor bruto',tone:'in'},
     {label:'Saídas de caixa',icon:ArrowUpRight,today:money(m.todayOut),total:money(m.totalOut),hint:'Saques pagos · valor líquido enviado',tone:'out'},
+    {label:'Projeção para amanhã',icon:ArrowUpRight,today:money(m.projectedNet),total:money(m.projectedGross),hint:'Estimativa líquida com base nos rendimentos diários dos planos ativos',tone:'projection'},
   ]
   return <section className="operation-control" aria-labelledby="operation-control-title">
     <header className="control-heading"><div><span className="eyebrow">RESUMO DA OPERAÇÃO</span><h2 id="operation-control-title">Seu controle, em números.</h2></div><span className="control-date">Hoje · {m.day.split('-').reverse().join('/')}<small>Horário de São Paulo</small></span></header>

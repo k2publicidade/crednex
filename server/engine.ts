@@ -5,7 +5,7 @@ import {activePlanLimit,DAY,PLANS,LEVELS,DEFAULT_RULES,rankFor,withdrawalOpen,fe
 import type {User} from '../src/types.js'
 export type Account=User & {passwordHash:string}
 export interface Entry {id:string;key:string;userId:string;wallet:Wallet;cents:number;description:string;at:string}
-export interface Contract {planName?:string;family?:PlanFamily;requestId?:string;balancePrincipal?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
+export interface Contract {planName?:string;family?:PlanFamily;requestId?:string;balancePrincipal?:number;compoundBalance?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
 export interface Db {plans?:Plan[];walletPolicyVersion?:number;version:number;support:SupportSettings;users:Account[];sessions:Record<string,{userId:string;expires:number}>;rules:Rules;ledger:Entry[];contracts:Contract[];deposits:any[];withdrawals:any[];tickets:any[];spins:any[];audit:any[];salaryMonths:string[]}
 export const id=()=>crypto.randomUUID()
 export const emptyDb=():Db=>({plans:initialPlans(),walletPolicyVersion:1,version:1,support:{...DEFAULT_SUPPORT},users:[],sessions:{},rules:structuredClone(DEFAULT_RULES),ledger:[],contracts:[],deposits:[],withdrawals:[],tickets:[],spins:[],audit:[],salaryMonths:[]})
@@ -25,13 +25,14 @@ function commissions(db:Db,userId:string,cents:number,key:string,at:string) {
     current=db.users.find(u=>u.id===current?.sponsorId)
     if(!current||seen.has(current.id))break
     seen.add(current.id)
-    if(activeAssociate(db,current.id)) entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
+    if(activeAssociate(db,current.id)) { entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at); if(level===0)spin(db,current.id,`activation:${key}`) }
   }
 }
 function spin(db:Db,userId:string,key:string) {if(!db.spins.some(s=>s.key===key))db.spins.push({id:id(),key,userId,status:'AVAILABLE',at:new Date().toISOString()})}
 export function userSpins(db:Db,userId:string) {
   return db.spins.filter(s=>s.userId===userId).map(s=>{
     if(s.status!=='AVAILABLE')return s
+    if(String(s.key).startsWith('activation:'))return s
     const contract=db.contracts.find(c=>s.key===`reinvestment:${c.id}`&&c.userId===userId)
     const family=contract?.family??PLANS.find(p=>p.id===contract?.planId)?.family
     const valid=contract&&(family==='cycle'||family==='daily')&&db.ledger.some(e=>e.key===`${contract.id}:purchase`&&e.userId===userId&&e.wallet==='earnings'&&e.cents===-contract.principal)
@@ -52,7 +53,7 @@ export function subscribe(db:Db,userId:string,planId:string,cents:number,wallet:
   const active=db.contracts.filter(c=>c.userId===userId&&c.planId===planId&&c.status==='ACTIVE').length
   const limit=activePlanLimit(db.rules,planId)
   if(active>=limit)throw new Error(`Limite de aplicações ativas em ${planId} atingido (${active}/${limit}). Aguarde o encerramento de uma aplicação para investir novamente.`)
-  const contract:Contract={planName:plan.name,family:plan.family,...(requestId?{requestId}:{}),balancePrincipal:wallet==='deposit'?cents:0,id:id(),userId,planId,principal:cents,bps:plan.bps,days:plan.days,paidDays:0,startedAt:at.toISOString(),status:'ACTIVE',returnPrincipal:returnsPrincipal(plan,db.rules),commissionBase:db.rules.commissionBase}
+  const contract:Contract={planName:plan.name,family:plan.family,...(requestId?{requestId}:{}),balancePrincipal:wallet==='deposit'?cents:0,compoundBalance:plan.family==='vault'?cents:undefined,id:id(),userId,planId,principal:cents,bps:plan.bps,days:plan.days,paidDays:0,startedAt:at.toISOString(),status:'ACTIVE',returnPrincipal:returnsPrincipal(plan,db.rules),commissionBase:db.rules.commissionBase}
   entry(db,userId,wallet,-cents,`${contract.id}:purchase`,`Aplicação ${planId}`,at.toISOString())
   db.contracts.push(contract)
   if(plan.family==='vault')entry(db,userId,'vault',cents,`${contract.id}:principal`,'Capital no Credcofre',at.toISOString())
@@ -66,9 +67,10 @@ export function accrue(db:Db,at=new Date()) {
     const elapsed=Math.max(0,Math.floor((at.getTime()-Date.parse(c.startedAt))/DAY))
     const due=c.days?Math.min(c.days,elapsed):elapsed
     for(let day=c.paidDays+1;day<=due;day++) {
-      const paidAt=new Date(Date.parse(c.startedAt)+day*DAY).toISOString(), cents=Math.floor(c.principal*c.bps/10000)
+      const paidAt=new Date(Date.parse(c.startedAt)+day*DAY).toISOString(), base=c.family==='vault'?(c.compoundBalance??c.principal):c.principal, cents=Math.floor(base*c.bps/10000)
       const key=`${c.id}:day:${day}`
-      if(entry(db,c.userId,'earnings',cents,key,`Rendimento ${c.planId} · dia ${day}`,paidAt)) {
+      if(entry(db,c.userId,c.family==='vault'?'vault':'earnings',cents,key,`Rendimento ${c.planId} · dia ${day}`,paidAt)) {
+        if(c.family==='vault')c.compoundBalance=(c.compoundBalance??c.principal)+cents
         if(c.commissionBase==='earnings') commissions(db,c.userId,cents,key,paidAt)
         count++
       }
@@ -85,8 +87,10 @@ export function redeem(db:Db,userId:string,contractId:string,at=new Date()) {
   const c=db.contracts.find(c=>c.id===contractId&&c.userId===userId&&(c.family??(c.planId==='CREDCOFRE'?'vault':''))==='vault'&&c.status==='ACTIVE')
   if(!c)throw new Error('Credcofre ativo não encontrado')
   accrue(db,at)
-  entry(db,userId,'vault',-c.principal,`${c.id}:redeem`,'Resgate de capital Credcofre',at.toISOString())
-  returnCapital(db,c,at)
+  const amount=c.compoundBalance??c.principal
+  const origin=(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?'earnings':'deposit') as Wallet
+  entry(db,userId,'vault',-amount,`${c.id}:redeem`,'Resgate de capital Credcofre',at.toISOString())
+  entry(db,userId,origin,amount,`${c.id}:return`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
   c.status='CLOSED'
   audit(db,userId,'VAULT_REDEEM',{contractId})
 }
@@ -94,7 +98,7 @@ export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,pixKey:s
   if(wallet!=='earnings')throw new Error('Somente a Carteira de Rendimentos permite saques. Depósitos não podem ser sacados')
   if(!canWithdraw(db,userId,at))throw new Error('É necessário ter um pacote ativo para sacar')
   if(!withdrawalOpen(wallet,at))throw new Error('Fora da janela de saques: 12h às 18h, horário de Brasília')
-  if(!Number.isSafeInteger(cents)||cents<=0||!pixKey.trim())throw new Error('Informe valor e chave PIX válidos')
+  if(!Number.isSafeInteger(cents)||cents<db.rules.withdrawalMin||!pixKey.trim())throw new Error(`O saque mínimo é de R$ ${(db.rules.withdrawalMin/100).toFixed(2).replace('.',',')}`)
   if(balance(db,userId,'earnings')<cents)throw new Error('Saldo insuficiente na Carteira de Rendimentos')
   const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:pixKey.trim(),status:'PENDING',at:at.toISOString()}
   if(request.net<=0)throw new Error('Valor líquido inválido')
@@ -136,6 +140,13 @@ export function canWithdraw(db:Db,userId:string,at=new Date()) {
   return db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')&&db.contracts.some(c=>c.userId===userId&&c.status==='ACTIVE'&&Date.parse(c.startedAt)<=at.getTime()&&(!c.days||Date.parse(c.startedAt)+c.days*DAY>at.getTime()))
 }
 export function returnCapital(db:Db,c:Contract,at:Date) {
+  if(c.family==='vault') {
+    const amount=c.compoundBalance??c.principal
+    const origin=(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?'earnings':'deposit') as Wallet
+    entry(db,c.userId,'vault',-amount,`${c.id}:redeem`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
+    entry(db,c.userId,origin,amount,`${c.id}:return`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
+    return
+  }
   const restricted=c.balancePrincipal??(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?0:c.principal)
   if(restricted)entry(db,c.userId,'deposit',restricted,`${c.id}:return:deposit`,`Capital devolvido à Carteira de Saldo · ${c.planId}`,at.toISOString())
   if(c.principal>restricted)entry(db,c.userId,'earnings',c.principal-restricted,`${c.id}:return`,`Capital de rendimentos devolvido · ${c.planId}`,at.toISOString())

@@ -48,8 +48,8 @@ export function Roulette({prizes,spins,draw,refresh}:{prizes:Prize[];spins:numbe
       <button className="primary luck-spin" disabled={busy||!spins||!prizes.length} onClick={()=>void spin()}><RefreshCw size={19}/>{phase==='request'?'Confirmando seu giro…':phase==='spinning'?'A sorte está girando…':'Girar minha roleta'}</button>
       <div aria-live="polite" aria-atomic="true">{phase==='result'&&result&&<div className="luck-result"><Sparkles size={22}/><span>Resultado do seu giro<strong>{result.label}</strong><small>Registrado no seu histórico{result.cents>0?' • Crédito na carteira de rendimentos':''}.</small></span></div>}</div>
       {error&&<p className="alert error" role="alert">{error} Confira o histórico antes de tentar novamente.</p>}
-      {!prizes.length?<p>Prêmios em preparação. Seus giros ficam guardados.</p>:!spins?<p>Você ainda não tem giros. Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros.</p>:<p><ShieldCheck size={13}/> Resultado confirmado com segurança.</p>}
+      {!prizes.length?<p>Prêmios em preparação. Seus giros ficam guardados.</p>:!spins?<p>Você ainda não tem giros. Reinvestimentos nos planos Ciclo ou Rendimento Diário e ativações de indicados diretos (nível 1) liberam um giro.</p>:<p><ShieldCheck size={13}/> Resultado confirmado com segurança.</p>}
     </div>
-    <details className="luck-rules"><summary>Como funciona</summary><p>Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros. Os prêmios são sorteados de forma segura e registrados no seu histórico.</p></details>
+    <details className="luck-rules"><summary>Como funciona</summary><p>Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário e cada ativação de indicação direta (nível 1) libera um giro. Os prêmios são sorteados de forma segura e registrados no seu histórico.</p></details>
   </section>
 }

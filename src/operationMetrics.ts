@@ -16,6 +16,9 @@ export function operationMetrics(data: Row, now = new Date()) {
   const withdrawals:Row[] = data.withdrawals.filter((w:Row)=>w.status==='PAID')
   const depositDate = (d:Row)=>d.confirmedAt??data.ledger.find((e:Row)=>e.key===`deposit:${d.id}`)?.at
   const sum=(rows:Row[],key:string)=>rows.reduce((s,r)=>s+(Number.isSafeInteger(r[key])&&r[key]>0?r[key]:0),0)
+  const activeContracts=(data.contracts as Row[]).filter(c=>c.status==='ACTIVE')
+  const projectedGross=activeContracts.filter(c=>(c.family??(c.planId==='CREDCOFRE'?'vault':'cycle'))!=='vault').reduce((s,c)=>s+Math.floor(Number(c.principal||0)*Number(c.bps||0)/10000),0)
+  const projectedNet=Math.floor(projectedGross*.9)
   return {
     day, todayPeople:newUsers.length,totalPeople:users.length,
     todayActive:newUsers.filter(u=>u.status==='ACTIVE').length,totalActive:users.filter(u=>u.status==='ACTIVE').length,
@@ -23,7 +26,7 @@ export function operationMetrics(data: Row, now = new Date()) {
     todayOut:sum(withdrawals.filter(w=>operationDay(w.processedAt)===day),'net'),totalOut:sum(withdrawals,'net'),
     pendingOut:sum(data.withdrawals.filter((w:Row)=>w.status==='PENDING'),'net'),
     pendingCount:data.withdrawals.filter((w:Row)=>w.status==='PENDING').length,
-    activeContracts:data.contracts.filter((c:Row)=>c.status==='ACTIVE').length,
+    activeContracts:activeContracts.length, projectedGross, projectedNet,
     unknownUsers:users.filter(u=>!operationDay(u.createdAt??registration.get(u.id))).length,
     unknownPayments:deposits.filter(d=>!operationDay(depositDate(d))).length+withdrawals.filter(w=>!operationDay(w.processedAt)).length,
   }

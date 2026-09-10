@@ -16,10 +16,10 @@ export const RANKS = [
 ]
 export type Wallet = 'deposit'|'earnings'|'vault'
 export interface Rules {
-  activePlanLimits:Record<string,number>; confirmed:boolean; depositMin:number; returnPrincipal:boolean; commissionBase:'deposit'|'earnings';
+  activePlanLimits:Record<string,number>; confirmed:boolean; depositMin:number; withdrawalMin:number; returnPrincipal:boolean; commissionBase:'deposit'|'earnings';
   salaryScope:'direct'|'network'; prizes:{label:string;cents:number;weight:number}[]
 }
-export const DEFAULT_RULES:Rules = {activePlanLimits:Object.fromEntries(PLANS.map(p=>[p.id,2])),confirmed:false,depositMin:4000,returnPrincipal:false,commissionBase:'deposit',salaryScope:'direct',prizes:[]}
+export const DEFAULT_RULES:Rules = {activePlanLimits:Object.fromEntries(PLANS.map(p=>[p.id,2])),confirmed:false,depositMin:4000,withdrawalMin:4000,returnPrincipal:false,commissionBase:'deposit',salaryScope:'direct',prizes:[]}
 export function amount(value:unknown) {
   if(typeof value!=='string' && typeof value!=='number') throw new Error('Informe um valor válido')
   const text=String(value).replace(',','.')
