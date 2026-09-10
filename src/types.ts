@@ -1,1 +1,13 @@
-export interface User {id:string;name:string;username:string;email:string;phone?:string;cpf?:string;role:'ADMIN_MASTER'|'ADMIN_VIEWER'|'ASSOCIATE';status:'ACTIVE'|'BLOCKED';sponsorId:string|null;inviteCode:string;pixKey?:string}
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone?: string;
+  cpf?: string;
+  role: "ADMIN_MASTER" | "ADMIN_VIEWER" | "ASSOCIATE";
+  status: "ACTIVE" | "BLOCKED";
+  sponsorId: string | null;
+  inviteCode: string;
+  pixKey?: string;
+}
