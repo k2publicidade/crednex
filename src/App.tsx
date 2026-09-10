@@ -12,6 +12,7 @@ import {ApiClient,loadSession,saveSession,clearSession,type Session} from './api
 import {RANKS,DAY,planName,activePlanLimit,projectedReturn,remainingDays,amount,rankFor,fee,withdrawalOpen,type Rules} from './rules'
 import './styles.css'
 import './mobile.css'
+import './withdrawal-alert.css'
 import {Roulette} from './Roulette'
 import {PhoneAuth} from './PhoneAuth'
 
