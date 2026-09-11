@@ -36,3 +36,9 @@ test('recusa créditos para conta bloqueada ou inexistente e depósitos em cria�
   assert.throws(()=>addParticipantBalance(db,'admin','missing',body))
   assert.equal(db.ledger.length,0)
 })
+test('administrador escolhe entre saldo para aplicar e rendimentos sacáveis',()=>{
+ const db=fixture()
+ addParticipantBalance(db,'admin','member',{amount:40,reason:'Crédito em rendimentos',wallet:'earnings',requestId:'credit-earnings-001'})
+ assert.equal(balance(db,'member','earnings'),4000);assert.equal(balance(db,'member','deposit'),0)
+ assert.throws(()=>addParticipantBalance(db,'admin','member',{amount:40,reason:'Destino indevido',wallet:'vault',requestId:'credit-invalid-001'}),/carteira de destino/i)
+})

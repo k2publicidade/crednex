@@ -28,7 +28,7 @@ Na versão compilada, interface e API ficam em http://localhost:4020.
 - Portal com visão geral, nove planos, aplicações, carteiras, depósitos, saques e extrato.
 - Credcofre com capital separado dos rendimentos, resgate e encerramento da aplicação.
 - Rede genealógica, comissões em três níveis, elegibilidade, salário e giros.
-- Roleta com pesos e prêmios monetários configurados pelo administrador, sorteio no servidor e consumo único do giro.
+- Roleta com pesos e prêmios monetários configurados pelo administrador, sorteio no servidor e consumo único do giro. Cada indicação direta concluída concede exatamente um giro ao patrocinador; reinvestimentos elegíveis concedem giros adicionais.
 - Chamados com conversas e encerramento pelo administrador.
 - Central administrativa com usuários, aplicações, cobranças PIX, fila de saques, processamento, regras e auditoria.
 - Exclusão definitiva de participantes ativos ou bloqueados, com confirmação e revogação de todas as sessões. Administradores não podem ser excluídos. Saldos, aplicações ativas e depósitos ou saques pendentes impedem a exclusão até sua resolução. O histórico financeiro, de suporte e de auditoria permanece; indicados diretos ficam sem patrocinador, sem promoção de níveis. Giros não utilizados da conta excluída são removidos.
@@ -47,14 +47,14 @@ A mensagem do usuário prevalece sobre o PDF. O PDF contém ciclos antigos de 30
 
 - R$40 é o mínimo para depósitos PIX. O saldo permite contratar aplicações de R$25.
 - Os intervalos dos ciclos são inclusivos. Em R$100 ou R$500, vale o plano escolhido pelo participante.
-- Rendimentos em centavos, arredondados para baixo por parcela, a cada 24 horas completas desde a contratação. Sem juros compostos e sem crédito proporcional por horas.
+- Rendimentos em centavos, arredondados para baixo por parcela, a cada 24 horas completas desde a contratação. Ciclos e NEX usam juros simples; o Credcofre usa juros compostos. Não há crédito proporcional por horas.
 - Os ciclos devolvem o capital à carteira de rendimentos ao encerrar o dia 30, disponível para saque ou reinvestimento. O lucro é creditado diariamente na carteira de rendimentos.
 - **NEX:** a devolução do capital não foi definida pelo usuário; o administrador escolhe antes de liberar aplicações. A configuração inicial está desativada. O contrato captura a configuração vigente.
-- Credcofre: principal fica bloqueado para saque enquanto a aplicação rende. O resgate encerra a aplicação imediatamente e libera o principal na carteira Credcofre. Rendimentos ficam disponíveis sem encerrar o capital. Não há resgate parcial do principal; aplicações podem ser abertas separadamente.
-- Saques: rendimentos de segunda a sexta; Credcofre todos os dias. Janela `[12:00,18:00)` em `America/Sao_Paulo`. Taxa de 10% sobre o valor bruto, arredondada para o centavo mais próximo. O saldo bruto é reservado na solicitação; recusa devolve uma única vez.
+- Credcofre: o saldo fica bloqueado enquanto a aplicação rende, com juros compostos creditados no próprio cofre a cada 24 horas. O resgate encerra a aplicação e transfere capital e juros para a Carteira de Rendimentos, liberando esse valor para saque. Não há resgate parcial; aplicações podem ser abertas separadamente.
+- Saques: de segunda a sexta, na janela `[12:00,18:00)` em `America/Sao_Paulo`; o resgate interno do Credcofre pode ser feito a qualquer momento. Taxa de 10% sobre o valor bruto, arredondada para o centavo mais próximo. O saldo bruto é reservado na solicitação; recusa devolve uma única vez.
 - Comissão inicial configurada sobre o valor de cada aplicação confirmada, incluindo reinvestimentos e Credcofre; alternativa sobre os rendimentos. Níveis 10%, 3% e 2%, sem compressão: um nível inelegível não transfere sua comissão. Beneficiário recebe a comissão como participante ativo (conta ativa), independentemente de plano; para sacar a bonificação, é preciso ter plano ativo. Essas escolhas aguardam revisão administrativa porque o usuário não definiu a base.
 - Salário inicial por **indicados diretos**, opção de rede inteira no painel. Ativo = conta ativa com aplicação vigente. Maior faixa elegível no processamento, um pagamento por mês civil; não há complemento automático por promoção no mesmo mês. Bronze R$75 (5/10), Prata R$150 (10/25), Ouro R$350 (20/50), Diamante R$850 (35/100). Contagem e calendário são decisões operacionais explicitadas, ainda sujeitas à definição da empresa.
-- Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre e ativações de indicados não geram giros. Giros antigos fora dessa regra ficam cancelados; resultados já utilizados permanecem no histórico. Prêmios e probabilidades aguardam cadastro; nenhum prêmio foi inventado.
+- Cada indicação direta concluída e cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre não gera giros. Giros antigos fora dessa regra ficam cancelados; resultados já utilizados permanecem no histórico. Prêmios e probabilidades aguardam cadastro; nenhum prêmio foi inventado.
 - Suporte: segunda a sexta, 12h–18h; sábado e domingo, 12h–15h. Abertura de chamados disponível a qualquer hora.
 
 ## PIX e operação externa
@@ -89,10 +89,10 @@ Participantes: busca, edição de nome/usuário/e-mail/chave PIX, saldos e hist�
 
 ## Carteiras e saques
 
-- Carteira de Saldo (`deposit`): depósitos PIX e créditos administrativos para compras de pacotes, sem saque.
+- Carteira de Saldo (`deposit`): recebe valores destinados a compras de pacotes, sem saque. Tanto o PIX quanto o crédito administrativo permitem escolher Rendimentos como destino alternativo.
 - Carteira de Rendimentos (`earnings`): indicações, bônus, salários, roleta e rendimentos de todos os planos, inclusive Credcofre. Reinvestimentos com ganhos continuam permitidos.
-- Credcofre (`vault`): guarda apenas capital aplicado. Resgatar devolve o principal à carteira de origem; capital depositado continua não sacável. A devolução de principal dos ciclos e NEX segue a mesma regra.
-- Solicitar e aprovar um saque exige conta ativa e pacote ativo não vencido. Só `earnings` é aceito; permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar libera a reserva mesmo sem pacote ativo.
+- Credcofre (`vault`): guarda o capital aplicado e seus juros compostos. Resgatar transfere o total para Rendimentos. A devolução de principal dos ciclos e NEX continua seguindo a origem do capital.
+- Solicitar um saque exige conta ativa e pacote ativo não vencido, com exceção do saldo liberado por um resgate do Credcofre. Só `earnings` é aceito; permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar libera a reserva mesmo sem pacote ativo.
 
 A migração `walletPolicyVersion=1` preserva lançamentos históricos e saques pagos. Reconstrói a origem do capital por compra/devolução, adiciona transferências auditadas do principal remanescente para Saldo e move ganhos antigos do Credcofre para Rendimentos. Em saldos históricos mistos, débitos comuns consomem ganhos primeiro; reinvestimentos consomem o principal restrito primeiro, preservando sua origem no contrato. Reservas antigas do Credcofre ou incompatíveis com o capital restrito são recusadas e devolvidas para nova solicitação. A migração executa uma vez dentro da transação do banco.
 

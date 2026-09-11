@@ -26,14 +26,15 @@ function commissions(db:Db,userId:string,cents:number,key:string,at:string) {
     current=db.users.find(u=>u.id===current?.sponsorId)
     if(!current||seen.has(current.id))break
     seen.add(current.id)
-    if(activeAssociate(db,current.id)) { entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at); if(level===0)spin(db,current.id,`activation:${key}`) }
+    if(activeAssociate(db,current.id)) entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
   }
 }
 function spin(db:Db,userId:string,key:string) {if(!db.spins.some(s=>s.key===key))db.spins.push({id:id(),key,userId,status:'AVAILABLE',at:new Date().toISOString()})}
+export function grantReferralSpin(db:Db,sponsorId:string,referralId:string) { spin(db,sponsorId,`referral:${referralId}`) }
 export function userSpins(db:Db,userId:string) {
   return db.spins.filter(s=>s.userId===userId).map(s=>{
     if(s.status!=='AVAILABLE')return s
-    if(String(s.key).startsWith('activation:'))return s
+    if(String(s.key).startsWith('referral:'))return s
     const contract=db.contracts.find(c=>s.key===`reinvestment:${c.id}`&&c.userId===userId)
     const family=contract?.family??PLANS.find(p=>p.id===contract?.planId)?.family
     const valid=contract&&(family==='cycle'||family==='daily')&&db.ledger.some(e=>e.key===`${contract.id}:purchase`&&e.userId===userId&&e.wallet==='earnings'&&e.cents===-contract.principal)
@@ -89,20 +90,21 @@ export function redeem(db:Db,userId:string,contractId:string,at=new Date()) {
   if(!c)throw new Error('Credcofre ativo não encontrado')
   accrue(db,at)
   const amount=c.compoundBalance??c.principal
-  const origin=(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?'earnings':'deposit') as Wallet
   entry(db,userId,'vault',-amount,`${c.id}:redeem`,'Resgate de capital Credcofre',at.toISOString())
-  entry(db,userId,origin,amount,`${c.id}:return`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
+  entry(db,userId,'earnings',amount,`${c.id}:return`,'Resgate do Credcofre liberado em Rendimentos',at.toISOString())
   c.status='CLOSED'
   audit(db,userId,'VAULT_REDEEM',{contractId})
 }
 export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,_pixKey?:string,at=new Date()) {
   if(wallet!=='earnings')throw new Error('Somente a Carteira de Rendimentos permite saques. Depósitos não podem ser sacados')
-  if(!canWithdraw(db,userId,at))throw new Error('É necessário ter um pacote ativo para sacar')
   if(!withdrawalOpen(wallet,at))throw new Error('Fora da janela de saques: 12h às 18h, horário de Brasília')
   const user=db.users.find(u=>u.id===userId),cpf=normalizeCpf(user?.cpf)
+  const activePackage=hasActivePackage(db,userId,at),limit=withdrawalLimit(db,userId,at)
+  if(!limit)throw new Error('É necessário ter um pacote ativo ou saldo resgatado do Credcofre para sacar')
   if(!Number.isSafeInteger(cents)||cents<db.rules.withdrawalMin)throw new Error(`O saque mínimo é de R$ ${(db.rules.withdrawalMin/100).toFixed(2).replace('.',',')}`)
   if(balance(db,userId,'earnings')<cents)throw new Error('Saldo insuficiente na Carteira de Rendimentos')
-  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:cpf,pixKeyType:'cpf' as const,customerDocument:cpf,status:'PENDING',at:at.toISOString()}
+  if(cents>limit)throw new Error('Sem pacote ativo, o saque está limitado ao saldo resgatado do Credcofre')
+  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:cpf,pixKeyType:'cpf' as const,customerDocument:cpf,eligibility:activePackage?'ACTIVE_PACKAGE':'VAULT_REDEMPTION',status:'PENDING',at:at.toISOString()}
   if(request.net<=0)throw new Error('Valor líquido inválido')
   entry(db,userId,wallet,-cents,`${request.id}:reserve`,'Reserva para saque PIX',at.toISOString())
   db.withdrawals.push(request); return request
@@ -112,7 +114,8 @@ export function settleWithdrawal(db:Db,requestId:string,status:string,reference:
   if(!w||w.status!=='PENDING')throw new Error('Saque não encontrado ou já concluído')
   if(w.payoutState)throw new Error('Saque enviado ao gateway: aguarde a confirmação ou concilie com a 2PP')
   if(!['PAID','REJECTED'].includes(status)||!reference.trim())throw new Error('Informe o comprovante ou motivo')
-  if(status==='PAID'&&(w.wallet!=='earnings'||!canWithdraw(db,w.userId,at)))throw new Error('Pagamento bloqueado: o saque exige Carteira de Rendimentos e pacote ativo')
+  const activeAccount=db.users.some(u=>u.id===w.userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')
+  if(status==='PAID'&&(w.wallet!=='earnings'||!activeAccount||(w.eligibility!=='VAULT_REDEMPTION'&&!hasActivePackage(db,w.userId,at))))throw new Error('Pagamento bloqueado: o saque exige conta ativa, Carteira de Rendimentos e pacote ativo ou resgate do Credcofre')
   if(status==='REJECTED')entry(db,w.userId,w.wallet,w.cents,`${w.id}:refund`,'Saque recusado: saldo devolvido')
   w.status=status;w.reference=reference;w.processedAt=new Date().toISOString()
 }
@@ -139,15 +142,33 @@ export function draw(db:Db,userId:string,random=(max:number)=>crypto.randomInt(m
   token.status='USED';token.prize=winner;return token
 }
 
-export function canWithdraw(db:Db,userId:string,at=new Date()) {
+export function hasActivePackage(db:Db,userId:string,at=new Date()) {
   return db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')&&db.contracts.some(c=>c.userId===userId&&c.status==='ACTIVE'&&Date.parse(c.startedAt)<=at.getTime()&&(!c.days||Date.parse(c.startedAt)+c.days*DAY>at.getTime()))
+}
+export function redeemedVaultBalance(db:Db,userId:string) {
+  let available=0
+  const reserved=new Map<string,number>()
+  for(const e of db.ledger.filter(e=>e.userId===userId&&e.wallet==='earnings')) {
+    const returned=db.contracts.some(c=>c.userId===userId&&(c.family??(c.planId==='CREDCOFRE'?'vault':''))==='vault'&&e.key===`${c.id}:return`)
+    if(returned&&e.cents>0){available+=e.cents;continue}
+    if(e.cents<0){const used=Math.min(available,-e.cents);available-=used;const match=e.key.match(/^(.+):reserve$/);if(match)reserved.set(match[1],used);continue}
+    const refund=e.key.match(/^(.+):refund$/);if(refund)available+=reserved.get(refund[1])??0
+  }
+  return available
+}
+export function withdrawalLimit(db:Db,userId:string,at=new Date()) {
+  if(!db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE'))return 0
+  const earnings=balance(db,userId,'earnings')
+  return hasActivePackage(db,userId,at)?earnings:Math.min(earnings,redeemedVaultBalance(db,userId))
+}
+export function canWithdraw(db:Db,userId:string,at=new Date()) {
+  return db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')&&(hasActivePackage(db,userId,at)||redeemedVaultBalance(db,userId)>0)
 }
 export function returnCapital(db:Db,c:Contract,at:Date) {
   if(c.family==='vault') {
     const amount=c.compoundBalance??c.principal
-    const origin=(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?'earnings':'deposit') as Wallet
     entry(db,c.userId,'vault',-amount,`${c.id}:redeem`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
-    entry(db,c.userId,origin,amount,`${c.id}:return`,'Capital e juros compostos devolvidos pelo Credcofre',at.toISOString())
+    entry(db,c.userId,'earnings',amount,`${c.id}:return`,'Resgate do Credcofre liberado em Rendimentos',at.toISOString())
     return
   }
   const restricted=c.balancePrincipal??(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?0:c.principal)

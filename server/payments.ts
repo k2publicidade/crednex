@@ -1,6 +1,12 @@
-import {amount} from '../src/rules.js'
+import {amount,type Wallet} from '../src/rules.js'
 import {entry,audit,type Db} from './engine.js'
 import type {PixPayTransaction} from './pixpay.js'
+
+export function depositWallet(value:unknown):Extract<Wallet,'deposit'|'earnings'> {
+  if(value===undefined||value==='deposit')return 'deposit'
+  if(value==='earnings')return 'earnings'
+  throw new Error('Carteira de destino inválida')
+}
 
 // Called only after authenticating the webhook. A local reference allows the
 // callback to arrive while the gateway's creation request is still in flight.
@@ -20,11 +26,12 @@ export function confirmDeposit(db:Db,body:unknown,reference?:string) {
   if(deposit.providerId&&deposit.providerId!==providerId)throw new Error('Transação diverge da cobrança')
   if(String(payload.status).toUpperCase()!=='COMPLETED')return {ok:true,credited:false}
   if(amount(payload.amount)!==deposit.cents)throw new Error('Valor recebido diverge da cobrança')
-  const credited=entry(db,deposit.userId,'deposit',deposit.cents,`deposit:${deposit.id}`,'Depósito PIX confirmado')
+  const wallet=depositWallet(deposit.wallet)
+  const credited=entry(db,deposit.userId,wallet,deposit.cents,`deposit:${deposit.id}`,wallet==='earnings'?'Depósito PIX confirmado em Rendimentos':'Depósito PIX confirmado em Saldo')
   deposit.providerId=providerId
   deposit.status='PAID'
   deposit.confirmedAt??=new Date().toISOString()
-  if(credited)audit(db,'gateway','PIX_CONFIRMED',{id:deposit.id})
+  if(credited)audit(db,'gateway','PIX_CONFIRMED',{id:deposit.id,wallet})
   return {ok:true,credited}
 }
 

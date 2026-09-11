@@ -1,5 +1,6 @@
 import {amount} from '../src/rules.js'
 import {audit,entry,type Db} from './engine.js'
+import {depositWallet} from './payments.js'
 
 function participant(db:Db,userId:string) {
   const user=db.users.find(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')
@@ -18,26 +19,27 @@ export function approveDeposit(db:Db,actor:string,depositId:string,reference:unk
   participant(db,deposit.userId)
   const memo=reason(reference)
   if(!Number.isSafeInteger(deposit.cents)||deposit.cents<=0)throw new Error('Valor do depósito inválido')
-  const credited=entry(db,deposit.userId,'deposit',deposit.cents,`deposit:${deposit.id}`,'Depósito PIX aprovado pelo administrador')
+  const wallet=depositWallet(deposit.wallet)
+  const credited=entry(db,deposit.userId,wallet,deposit.cents,`deposit:${deposit.id}`,wallet==='earnings'?'Depósito PIX aprovado em Rendimentos':'Depósito PIX aprovado em Saldo')
   deposit.status='PAID'
   deposit.confirmedAt??=new Date().toISOString()
   deposit.approvedBy=actor
   deposit.approvalReference=memo
-  if(credited)audit(db,actor,'PIX_MANUALLY_APPROVED',{id:deposit.id,userId:deposit.userId,cents:deposit.cents,reference:memo})
+  if(credited)audit(db,actor,'PIX_MANUALLY_APPROVED',{id:deposit.id,userId:deposit.userId,cents:deposit.cents,wallet,reference:memo})
   return {ok:true,credited}
 }
 export function addParticipantBalance(db:Db,actor:string,userId:string,body:Record<string,unknown>) {
   participant(db,userId)
-  const cents=amount(body.amount),memo=reason(body.reason),requestId=body.requestId
+  const cents=amount(body.amount),memo=reason(body.reason),requestId=body.requestId,wallet=depositWallet(body.wallet)
   if(typeof requestId!=='string'||! /^[a-zA-Z0-9-]{16,80}$/.test(requestId))throw new Error('Identificador da operação inválido')
   const key=`admin-credit:${actor}:${requestId}`
   const previous=db.ledger.find(e=>e.key===key)
-  const description=`Saldo adicionado pelo administrador: ${memo}`
+  const description=`Saldo adicionado pelo administrador em ${wallet==='earnings'?'Rendimentos':'Saldo'}: ${memo}`
   if(previous){
     if(previous.userId!==userId||previous.cents!==cents||previous.description!==description)throw new Error('Identificador já utilizado em outra operação')
     return {ok:true,credited:false}
   }
-  entry(db,userId,'deposit',cents,key,description)
-  audit(db,actor,'BALANCE_ADDED',{userId,cents,reason:memo,requestId})
+  entry(db,userId,wallet,cents,key,description)
+  audit(db,actor,'BALANCE_ADDED',{userId,cents,wallet,reason:memo,requestId})
   return {ok:true,credited:true}
 }

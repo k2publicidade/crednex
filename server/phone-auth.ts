@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import type {Express} from 'express'
 import type {createStore} from './store.js'
-import {audit,id,type Db,type Account} from './engine.js'
+import {audit,id,grantReferralSpin,type Db,type Account} from './engine.js'
 import {hash,verify} from './passwords.js'
 import {normalizePhone} from '../src/phone.js'
 import {validPassword} from '../src/security.js'
@@ -22,7 +22,7 @@ export function installPhoneAuth(app:Express,store:ReturnType<typeof createStore
           const sponsor=db.users.find(u=>u.inviteCode===code&&u.status==='ACTIVE')
           if(!sponsor)throw new Error('Convite inválido')
           user={id:id(),phone,name:'',username:'tel_'+crypto.randomBytes(12).toString('hex'),email:'',passwordHash:hash(password),role:'ASSOCIATE',status:'ACTIVE',sponsorId:sponsor.id,inviteCode:invite(db)}
-          db.users.push(user);audit(db,user.id,'REGISTER',{method:'phone'})
+          db.users.push(user);grantReferralSpin(db,sponsor.id,user.id);audit(db,user.id,'REGISTER',{method:'phone',sponsorId:sponsor.id,referralSpinGranted:true})
         }else if(!user||user.status!=='ACTIVE'||typeof password!=='string'||!verify(password,user.passwordHash)){
           throw Object.assign(new Error('Telefone ou senha incorretos'),{status:401})
         }

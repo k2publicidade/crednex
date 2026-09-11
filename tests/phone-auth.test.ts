@@ -37,6 +37,8 @@ test('cadastro e login com telefone/senha, indicação, duplicidade e bloqueio',
     assert.equal(login.status,200);assert.equal(login.body.user.id,registered.body.user.id)
     const guest=await call('/auth/register',{phone:'21988881234',password,inviteCode:login.body.user.inviteCode})
     assert.equal(guest.status,200);assert.equal(guest.body.user.sponsorId,login.body.user.id)
+    const sponsorState=await call('/state',undefined,login.body.token,'GET')
+    assert.equal(sponsorState.body.spins.filter((s:any)=>s.status==='AVAILABLE').length,1)
     assert.equal((await call('/deposits',{amount:40,document:'12345678901'},login.body.token)).status,422)
     assert.equal((await call('/profile',{email:'inválido'},login.body.token,'PATCH')).status,422)
     assert.equal((await call('/profile',{name:'Maria Silva',email:'maria@phone.test'},login.body.token,'PATCH')).status,200)

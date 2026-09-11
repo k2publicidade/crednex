@@ -66,7 +66,7 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     const webhookUrl = `/webhooks/2pp?token=${process.env.PIXPAY_WEBHOOK_TOKEN}`
     assert.equal((await call(webhookUrl, {status: 'success', data: {transactionId: gateways[0].id, amount: '100.00', status: 'COMPLETED', paymentMethod: 'pix'}})).status, 200)
     assert.equal((await call('/state', undefined, maria.token)).body.balances.deposit, 10000)
-    // Ativação: maria elegível antes do pedro → comissão nível 1 sem giro
+    // Ativação: maria elegível antes do pedro → comissão nível 1; a indicação já liberou o giro
     await call('/deposits', {amount: 500, document: '987.654.321-00'}, pedro.token)
     await call(webhookUrl, {transactionId: gateways[1].id, amount: '500.00', status: 'COMPLETED'})
     assert.equal((await call('/contracts', {planId: 'C-1', amount: 25, wallet: 'deposit'}, maria.token)).body.status, 'ACTIVE')
@@ -74,14 +74,14 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     const mariaAfter = (await call('/state', undefined, maria.token)).body
     const commission = mariaAfter.ledger.find((e: any) => e.key.includes(':level:1'))
     assert.ok(commission && commission.cents === 5000, 'comissão nível 1 de R$50,00')
-    assert.equal(mariaAfter.spins.filter((s: any) => s.status === 'AVAILABLE').length, 0)
-    assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
+    assert.equal(mariaAfter.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
+    assert.equal((await call('/spins/draw', {}, maria.token)).status, 200)
     assert.equal((await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
-    assert.equal((await call('/state', undefined, maria.token)).body.spins.length, 0)
+    assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 0)
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
     assert.equal((await call('/contracts', {planId: 'C-1', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
     assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
-    // Roleta: um giro por token
+    // Reinvestimento: um novo giro independente por operação elegível
     const spin = await call('/spins/draw', {}, maria.token)
     assert.equal(spin.status, 200)
     assert.ok(spin.body.prize && spin.body.status === 'USED')

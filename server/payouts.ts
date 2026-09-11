@@ -4,7 +4,14 @@ import {validatePayout,type PixKeyType} from './pixpay-withdrawals.js'
 
 export function claimPayout(db:Db,id:string,actor:string,_details?:{pixKeyType?:PixKeyType;customerDocument?:string}) {
   const w=db.withdrawals.find(w=>w.id===id)
-  if(!w||w.status!=='PENDING'||w.payoutState)throw new Error('Saque já enviado ou indisponível. Confira a conciliação.')
+  if(!w||w.status!=='PENDING')throw new Error('Saque já enviado ou indisponível. Confira a conciliação.')
+  if(w.payoutState) {
+    const provider = typeof w.providerId==='string'&&w.providerId ? ` Identificador 2PP: ${w.providerId}.` : ''
+    const state = w.payoutState==='REVIEW_REQUIRED'
+      ? 'O envio teve resposta incerta e precisa ser conferido no painel da 2PP antes de qualquer nova ação.'
+      : `O pagamento está em processamento na 2PP (${w.payoutState}). Aguarde o callback de confirmação.`
+    throw new Error(`${state}${provider}`)
+  }
   if(!canWithdraw(db,w.userId))throw new Error('O participante precisa ter pacote ativo para sacar')
   const input=validatePayout({withdrawalId:id,amountCents:w.net,pixKey:w.pixKey,pixKeyType:'cpf',customerDocument:w.customerDocument||w.pixKey})
   w.payoutState='SUBMITTING';w.payoutAt=new Date().toISOString();w.pixKeyType=input.pixKeyType

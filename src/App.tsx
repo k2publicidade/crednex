@@ -1531,7 +1531,7 @@ export default function App() {
                         {[...data.deposits].reverse().map((d: Row) => (
                           <tr key={d.id}>
                             <td>{date(d.at)}</td>
-                            <td>{money(d.cents)}</td>
+                              <td>{money(d.cents)}<small>{walletName[d.wallet || "deposit"]}</small></td>
                             <td>
                               <Badge value={d.status} />
                             </td>
@@ -1890,7 +1890,7 @@ export default function App() {
                       <h2>Cobranças PIX</h2>
                       <p>
                         Aprove após conferir o recebimento. O valor será
-                        creditado na Carteira de Saldo.
+                        creditado na carteira escolhida pelo participante.
                       </p>
                     </div>
                     {isMaster && (
@@ -1921,7 +1921,7 @@ export default function App() {
                               ?.name ||
                               `Conta excluída (${d.userId.slice(0, 8)})`}
                           </td>
-                          <td>{money(d.cents)}</td>
+                          <td>{money(d.cents)}<small>{walletName[d.wallet || "deposit"]}</small></td>
                           <td>{date(d.at)}</td>
                           <td>
                             <Badge value={d.status} />
@@ -2188,9 +2188,8 @@ export default function App() {
                 }}
               >
                 <p>
-                  Crédito administrativo na Carteira de Saldo, disponível para
-                  aplicações. Para uma cobrança PIX existente, utilize Aprovar
-                  depósito.
+                  Escolha a carteira de destino do crédito administrativo. Para
+                  uma cobrança PIX existente, utilize Aprovar depósito.
                 </p>
                 <label>
                   Participante
@@ -2208,6 +2207,13 @@ export default function App() {
                           {u.name} · {u.username}
                         </option>
                       ))}
+                  </select>
+                </label>
+                <label>
+                  Creditar em
+                  <select name="wallet" defaultValue="deposit">
+                    <option value="deposit">Carteira de Saldo · para aplicar</option>
+                    <option value="earnings">Carteira de Rendimentos · permite saque</option>
                   </select>
                 </label>
                 <Field
@@ -2302,9 +2308,8 @@ export default function App() {
                 }}
               >
                 <p>
-                  Depósito mínimo de R$40. Após a confirmação, o valor entra na
-                  Carteira de Saldo para comprar pacotes. Depósitos não podem
-                  ser sacados.
+                  Depósito mínimo de R$40. Escolha se o valor será usado para
+                  aplicar ou ficará disponível na Carteira de Rendimentos.
                 </p>
                 <Field
                   label="Valor do depósito (R$)"
@@ -2314,6 +2319,13 @@ export default function App() {
                   step="0.01"
                   defaultValue="40"
                 />
+                <label>
+                  Creditar em
+                  <select name="wallet" defaultValue="deposit">
+                    <option value="deposit">Carteira de Saldo · para aplicar</option>
+                    <option value="earnings">Carteira de Rendimentos · permite saque</option>
+                  </select>
+                </label>
                 <Field label="CPF ou CNPJ do pagador" name="document" />
                 {data.user.phone && !data.user.email && (
                   <>
@@ -2383,8 +2395,8 @@ export default function App() {
             )}
             {modal === "withdraw" && (
               <WithdrawalForm
-                hasActivePackage={data.hasActivePackage === true}
-                balances={balances}
+                canWithdraw={data.canWithdraw === true}
+                available={data.withdrawalLimit ?? balances.earnings}
                 cpf={data.user.cpf}
                 onNeedCpf={() => {
                   setModal("");
@@ -2402,9 +2414,8 @@ export default function App() {
             {modal === "redeem" && (
               <>
                 <p>
-                  O capital deixará de render e voltará à carteira de origem.
-                  Capital depositado volta à Carteira de Saldo e não pode ser
-                  sacado. Somente ganhos podem ser sacados, com pacote ativo.
+                  O saldo deixará de render e será transferido integralmente para
+                  a Carteira de Rendimentos, onde ficará disponível para saque.
                 </p>
                 <button
                   className="primary"
@@ -2504,16 +2515,16 @@ export default function App() {
   );
 }
 function WithdrawalForm({
-  balances,
   cpf,
   onNeedCpf,
-  hasActivePackage,
+  canWithdraw,
+  available,
   submit,
 }: {
-  balances: Row;
   cpf?: string;
   onNeedCpf: () => void;
-  hasActivePackage: boolean;
+  canWithdraw: boolean;
+  available: number;
   submit: (values: Row) => Promise<void>;
 }) {
   const [value, setValue] = useState(""),
@@ -2522,25 +2533,20 @@ function WithdrawalForm({
     <Form
       button="Solicitar saque"
       busy={
-        !hasActivePackage ||
+        !canWithdraw ||
         !withdrawalOpen("earnings") ||
         cents < 4000 ||
-        cents > balances.earnings ||
+        cents > available ||
         !cpf
       }
       onSubmit={(values) => submit({ ...values, wallet: "earnings" })}
     >
       <p>
-        Somente a Carteira de Rendimentos permite saques. Depósitos são
-        exclusivos para compras de pacotes.
+        Disponível para saque: <strong>{money(available)}</strong>
       </p>
-      <p>
-        Disponível: <strong>{money(balances.earnings)}</strong>
-      </p>
-      {!hasActivePackage && (
+      {!canWithdraw && (
         <div className="alert error" role="status">
-          É necessário ter um pacote ativo para sacar. Compre ou renove um
-          pacote.
+          É necessário ter um pacote ativo ou saldo resgatado do Credcofre.
         </div>
       )}
       <label>
@@ -2549,7 +2555,7 @@ function WithdrawalForm({
           name="amount"
           type="number"
           min="40"
-          max={balances.earnings / 100}
+          max={available / 100}
           step="0.01"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -2570,17 +2576,9 @@ function WithdrawalForm({
           </>
         )}
       </div>
-      <p className="alert pending">
-        Saque mínimo de R$ 40,00. A taxa CREDNEX de 10% e as tarifas da 2PP
-        serão descontadas do valor bruto. O líquido final será confirmado pela
-        2PP antes do pagamento.
-      </p>
       <div className="withdraw-summary">
         <p>
           Taxa de 10% <span>{money(fee(cents))}</span>
-        </p>
-        <p>
-          Antes das tarifas 2PP <strong>{money(cents - fee(cents))}</strong>
         </p>
       </div>
       <small>
@@ -2707,9 +2705,9 @@ function RulesEditor({
           ))}
           <h3>Prêmios da roleta</h3>
           <p>
-            Cada reinvestimento com saldo de rendimentos nos planos Ciclo ou
-            Rendimento Diário libera um giro. CredCofre e ativações de indicados
-            não geram giros.
+            Cada indicação direta e cada reinvestimento com saldo de rendimentos
+            nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre não
+            gera giros.
           </p>
           <p>
             A chance de cada prêmio é seu peso dividido pela soma dos pesos.

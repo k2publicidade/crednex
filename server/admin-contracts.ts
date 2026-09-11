@@ -36,8 +36,10 @@ export function editContract(db:Db,actor:string,userId:string,contractId:string,
  const before=structuredClone(c),key=`admin-contract:${c.id}:${revision+1}`
  if(body.action==='close'){
   if(typeof body.refund!=='boolean')throw new Error('Informe se o capital deve ser devolvido')
-  if(c.family==='vault')entry(db,userId,'vault',-c.principal,`${key}:vault`,'Encerramento administrativo do cofre',at.toISOString())
-  if(body.refund)returnCapital(db,c,at)
+  if(c.family==='vault'){
+   if(body.refund)returnCapital(db,c,at)
+   else entry(db,userId,'vault',-(c.compoundBalance??c.principal),`${key}:vault`,'Encerramento administrativo do cofre',at.toISOString())
+  }else if(body.refund)returnCapital(db,c,at)
   c.status='CLOSED'
  }else{
   const p=catalog(db).find(p=>p.id===body.planId)
