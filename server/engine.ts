@@ -7,7 +7,7 @@ import {normalizeCpf} from '../src/security.js'
 export type Account=User & {passwordHash:string}
 export interface Entry {id:string;key:string;userId:string;wallet:Wallet;cents:number;description:string;at:string}
 export interface Contract {planName?:string;family?:PlanFamily;requestId?:string;balancePrincipal?:number;compoundBalance?:number;id:string;userId:string;planId:string;principal:number;bps:number;days:number;paidDays:number;startedAt:string;status:'ACTIVE'|'CLOSED';returnPrincipal:boolean;commissionBase:Rules['commissionBase']}
-export interface Db {plans?:Plan[];walletPolicyVersion?:number;version:number;support:SupportSettings;users:Account[];sessions:Record<string,{userId:string;expires:number}>;rules:Rules;ledger:Entry[];contracts:Contract[];deposits:any[];withdrawals:any[];tickets:any[];spins:any[];audit:any[];salaryMonths:string[]}
+export interface Db {plans?:Plan[];plansRev?:number;walletPolicyVersion?:number;yieldPolicyVersion?:number;version:number;support:SupportSettings;users:Account[];sessions:Record<string,{userId:string;expires:number}>;rules:Rules;ledger:Entry[];contracts:Contract[];deposits:any[];withdrawals:any[];tickets:any[];spins:any[];audit:any[];salaryMonths:string[]}
 export const id=()=>crypto.randomUUID()
 export const emptyDb=():Db=>({plans:initialPlans(),walletPolicyVersion:1,version:1,support:{...DEFAULT_SUPPORT},users:[],sessions:{},rules:structuredClone(DEFAULT_RULES),ledger:[],contracts:[],deposits:[],withdrawals:[],tickets:[],spins:[],audit:[],salaryMonths:[]})
 export const balance=(db:Db,userId:string,wallet:Wallet)=>db.ledger.filter(e=>e.userId===userId&&e.wallet===wallet).reduce((s,e)=>s+e.cents,0)
@@ -26,7 +26,7 @@ function commissions(db:Db,userId:string,cents:number,key:string,at:string) {
     current=db.users.find(u=>u.id===current?.sponsorId)
     if(!current||seen.has(current.id))break
     seen.add(current.id)
-    if(activeAssociate(db,current.id)) entry(db,current.id,'earnings',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
+    if(activeAssociate(db,current.id)) entry(db,current.id,'commission',Math.floor(cents*LEVELS[level]/10000),`${key}:level:${level+1}`,`Indicação nível ${level+1}`,at)
   }
 }
 function spin(db:Db,userId:string,key:string) {if(!db.spins.some(s=>s.key===key))db.spins.push({id:id(),key,userId,status:'AVAILABLE',at:new Date().toISOString()})}
@@ -71,7 +71,7 @@ export function accrue(db:Db,at=new Date()) {
     for(let day=c.paidDays+1;day<=due;day++) {
       const paidAt=new Date(Date.parse(c.startedAt)+day*DAY).toISOString(), base=c.family==='vault'?(c.compoundBalance??c.principal):c.principal, cents=Math.floor(base*c.bps/10000)
       const key=`${c.id}:day:${day}`
-      if(entry(db,c.userId,c.family==='vault'?'vault':'earnings',cents,key,`Rendimento ${c.planId} · dia ${day}`,paidAt)) {
+      if(entry(db,c.userId,c.family==='vault'?'vault':c.family==='cycle'?'locked':'earnings',cents,key,`Rendimento ${c.planId} · dia ${day}`,paidAt)) {
         if(c.family==='vault')c.compoundBalance=(c.compoundBalance??c.principal)+cents
         if(c.commissionBase==='earnings') commissions(db,c.userId,cents,key,paidAt)
         count++
@@ -96,17 +96,18 @@ export function redeem(db:Db,userId:string,contractId:string,at=new Date()) {
   audit(db,userId,'VAULT_REDEEM',{contractId})
 }
 export function withdraw(db:Db,userId:string,wallet:Wallet,cents:number,_pixKey?:string,at=new Date()) {
-  if(wallet!=='earnings')throw new Error('Somente a Carteira de Rendimentos permite saques. Depósitos não podem ser sacados')
+  if(wallet!=='earnings'&&wallet!=='commission')throw new Error('Somente as Carteiras de Rendimentos e de Indicações permitem saques. Depósitos não podem ser sacados')
   if(!withdrawalOpen(wallet,at))throw new Error('Fora da janela de saques: 12h às 18h, horário de Brasília')
   const user=db.users.find(u=>u.id===userId),cpf=normalizeCpf(user?.cpf)
   const activePackage=hasActivePackage(db,userId,at),limit=withdrawalLimit(db,userId,at)
-  if(!limit)throw new Error('É necessário ter um pacote ativo ou saldo resgatado do Credcofre para sacar')
+  if(!limit)throw new Error('Não há valor liberado para saque: o rendimento do ciclo é liberado no encerramento (Investimento + Lucro). Durante o ciclo fica disponível apenas o lucro de indicação')
   if(!Number.isSafeInteger(cents)||cents<db.rules.withdrawalMin)throw new Error(`O saque mínimo é de R$ ${(db.rules.withdrawalMin/100).toFixed(2).replace('.',',')}`)
-  if(balance(db,userId,'earnings')<cents)throw new Error('Saldo insuficiente na Carteira de Rendimentos')
-  if(cents>limit)throw new Error('Sem pacote ativo, o saque está limitado ao saldo resgatado do Credcofre')
-  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:cpf,pixKeyType:'cpf' as const,customerDocument:cpf,eligibility:activePackage?'ACTIVE_PACKAGE':'VAULT_REDEMPTION',status:'PENDING',at:at.toISOString()}
+  if(cents>limit)throw new Error('O valor liberado para saque é menor que o solicitado')
+  const fromEarnings=Math.min(cents,balance(db,userId,'earnings')),fromCommission=cents-fromEarnings
+  const request={id:id(),userId,wallet,cents,fee:fee(cents),net:cents-fee(cents),pixKey:cpf,pixKeyType:'cpf' as const,customerDocument:cpf,eligibility:activePackage?'ACTIVE_PACKAGE':'RELEASED_BALANCE',status:'PENDING',at:at.toISOString(),fromEarnings,fromCommission}
   if(request.net<=0)throw new Error('Valor líquido inválido')
-  entry(db,userId,wallet,-cents,`${request.id}:reserve`,'Reserva para saque PIX',at.toISOString())
+  if(fromEarnings>0)entry(db,userId,'earnings',-fromEarnings,`${request.id}:reserve`,'Reserva para saque PIX',at.toISOString())
+  if(fromCommission>0)entry(db,userId,'commission',-fromCommission,`${request.id}:reserve:commission`,'Reserva para saque PIX (indicação)',at.toISOString())
   db.withdrawals.push(request); return request
 }
 export function settleWithdrawal(db:Db,requestId:string,status:string,reference:string,at=new Date()) {
@@ -115,8 +116,12 @@ export function settleWithdrawal(db:Db,requestId:string,status:string,reference:
   if(w.payoutState)throw new Error('Saque enviado ao gateway: aguarde a confirmação ou concilie com a 2PP')
   if(!['PAID','REJECTED'].includes(status)||!reference.trim())throw new Error('Informe o comprovante ou motivo')
   const activeAccount=db.users.some(u=>u.id===w.userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')
-  if(status==='PAID'&&(w.wallet!=='earnings'||!activeAccount||(w.eligibility!=='VAULT_REDEMPTION'&&!hasActivePackage(db,w.userId,at))))throw new Error('Pagamento bloqueado: o saque exige conta ativa, Carteira de Rendimentos e pacote ativo ou resgate do Credcofre')
-  if(status==='REJECTED')entry(db,w.userId,w.wallet,w.cents,`${w.id}:refund`,'Saque recusado: saldo devolvido')
+  if(status==='PAID'&&((w.wallet!=='earnings'&&w.wallet!=='commission')||!activeAccount))throw new Error('Pagamento bloqueado: o saque exige conta ativa e Carteira de Rendimentos ou de Indicações')
+  if(status==='REJECTED') {
+    const backEarnings=w.fromEarnings??(w.wallet==='earnings'?w.cents:0),backCommission=w.fromCommission??(w.wallet==='commission'?w.cents:0)
+    if(backEarnings>0)entry(db,w.userId,'earnings',backEarnings,`${w.id}:refund`,'Saque recusado: saldo devolvido',at.toISOString())
+    if(backCommission>0)entry(db,w.userId,'commission',backCommission,`${w.id}:refund:commission`,'Saque recusado: saldo devolvido (indicação)',at.toISOString())
+  }
   w.status=status;w.reference=reference;w.processedAt=new Date().toISOString()
 }
 export function network(db:Db,userId:string) {
@@ -156,13 +161,15 @@ export function redeemedVaultBalance(db:Db,userId:string) {
   }
   return available
 }
-export function withdrawalLimit(db:Db,userId:string,at=new Date()) {
+export function withdrawalLimit(db:Db,userId:string,_at=new Date()) {
   if(!db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE'))return 0
-  const earnings=balance(db,userId,'earnings')
-  return hasActivePackage(db,userId,at)?earnings:Math.min(earnings,redeemedVaultBalance(db,userId))
+  // Só é sacável o que está LIBERADO: rendimentos do ciclo encerrado, resgates do
+  // Credcofre e o lucro de indicação. O rendimento de ciclo em andamento fica na
+  // carteira 'locked' e não entra aqui.
+  return Math.max(0,balance(db,userId,'earnings')+balance(db,userId,'commission'))
 }
 export function canWithdraw(db:Db,userId:string,at=new Date()) {
-  return db.users.some(u=>u.id===userId&&u.role==='ASSOCIATE'&&u.status==='ACTIVE')&&(hasActivePackage(db,userId,at)||redeemedVaultBalance(db,userId)>0)
+  return withdrawalLimit(db,userId,at)>0
 }
 export function returnCapital(db:Db,c:Contract,at:Date) {
   if(c.family==='vault') {
@@ -171,9 +178,55 @@ export function returnCapital(db:Db,c:Contract,at:Date) {
     entry(db,c.userId,'earnings',amount,`${c.id}:return`,'Resgate do Credcofre liberado em Rendimentos',at.toISOString())
     return
   }
+  if(c.family==='cycle') {
+    // Fim do ciclo: libera Investimento + Lucro na Carteira de Rendimentos,
+    // onde passa a ser sacável (regra: rendimento do ciclo só no encerramento).
+    const locked=db.ledger.filter(e=>e.userId===c.userId&&e.wallet==='locked'&&e.key.startsWith(`${c.id}:day:`)).reduce((s,e)=>s+e.cents,0)
+    if(locked>0) {
+      entry(db,c.userId,'locked',-locked,`${c.id}:release:locked`,'Rendimento do ciclo liberado',at.toISOString())
+      entry(db,c.userId,'earnings',locked,`${c.id}:return:yield`,`Rendimento do ciclo liberado · ${c.planId}`,at.toISOString())
+    }
+    if(c.principal>0)entry(db,c.userId,'earnings',c.principal,`${c.id}:return`,`Investimento devolvido · ${c.planId}`,at.toISOString())
+    return
+  }
   const restricted=c.balancePrincipal??(db.ledger.find(e=>e.key===`${c.id}:purchase`)?.wallet==='earnings'?0:c.principal)
   if(restricted)entry(db,c.userId,'deposit',restricted,`${c.id}:return:deposit`,`Capital devolvido à Carteira de Saldo · ${c.planId}`,at.toISOString())
   if(c.principal>restricted)entry(db,c.userId,'earnings',c.principal-restricted,`${c.id}:return`,`Capital de rendimentos devolvido · ${c.planId}`,at.toISOString())
+}
+
+export function migrateCyclePlans(db:Db) {
+  if((db.plansRev??0)>=2)return
+  const defaults=new Map(initialPlans().map(p=>[p.id,p]))
+  db.plans=(db.plans??initialPlans()).map(p=>{const fresh=defaults.get(p.id);return p.family==='cycle'&&fresh?{...p,...fresh}:p})
+  db.plansRev=2
+  audit(db,'system','PLAN_CATALOG_UPDATED',{cycle:['C-1','C-2','C-3'],unit:'35 dias; 8%/9%/10% ao dia'})
+}
+
+// v2: separa o lucro de indicação (sacável durante o ciclo) e trava o rendimento
+// dos ciclos em andamento na carteira 'locked' (liberado no encerramento).
+// Usa flag PRÓPRIA (yieldPolicyVersion): reaproveitar walletPolicyVersion faria a
+// migração v1 rodar de novo e transferir rendimentos para a carteira de saldo.
+export function migrateLockedYieldPolicy(db:Db) {
+  if((db.yieldPolicyVersion??0)>=1)return
+  for(const user of db.users) {
+    const sum=(test:(e:Entry)=>boolean)=>db.ledger.filter(e=>e.userId===user.id&&e.wallet==='earnings'&&e.cents>0&&test(e)).reduce((s,e)=>s+e.cents,0)
+    const commission=sum(e=>/:level:\d+$/.test(e.key))
+    const activeCycle=db.contracts.filter(c=>c.userId===user.id&&c.family==='cycle'&&c.status==='ACTIVE').map(c=>c.id)
+    const locked=sum(e=>activeCycle.some(planId=>e.key.startsWith(`${planId}:day:`)))
+    let available=balance(db,user.id,'earnings')
+    const move=(to:'commission'|'locked',cents:number,label:string)=>{
+      const value=Math.min(cents,available)
+      if(value<=0)return
+      available-=value
+      const key=`yield-policy:${user.id}:${to}`
+      entry(db,user.id,'earnings',-value,`${key}:debit`,'Adequação: separação de carteiras')
+      entry(db,user.id,to,value,`${key}:credit`,label)
+      audit(db,'system','YIELD_POLICY_TRANSFER',{userId:user.id,to,cents:value})
+    }
+    move('commission',commission,'Lucro de indicação separado para saque')
+    move('locked',locked,'Rendimento do ciclo em andamento (liberado no encerramento)')
+  }
+  db.yieldPolicyVersion=1
 }
 
 // Replays existing origin without altering historical ledger rows or paid withdrawals.
@@ -184,7 +237,7 @@ export function migrateWalletPolicy(db:Db) {
     for(const e of db.ledger.filter(e=>e.userId===user.id)) {
       const purchase=db.contracts.find(c=>e.key===`${c.id}:purchase`)
       if(purchase)purchase.balancePrincipal=e.wallet==='deposit'?purchase.principal:Math.min(restricted.earnings,purchase.principal)
-      if(e.wallet==='deposit')continue
+      if(e.wallet==='deposit'||e.wallet==='locked'||e.wallet==='commission')continue
       const reservation=db.withdrawals.find(w=>e.key===`${w.id}:reserve`)
       const consumed=e.cents<0?(purchase?Math.min(restricted[e.wallet],-e.cents):Math.min(restricted[e.wallet],Math.max(0,-e.cents-Math.max(0,running[e.wallet]-restricted[e.wallet])))):0
       if(reservation)reservedOrigins.set(reservation.id,consumed)

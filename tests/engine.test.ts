@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {emptyDb,entry,balance,subscribe,accrue,redeem,withdraw,settleWithdrawal,draw,salary,network,userSpins} from '../server/engine.js'
+import {emptyDb,entry,balance,subscribe,accrue,redeem,withdraw,settleWithdrawal,draw,salary,network,userSpins,canWithdraw} from '../server/engine.js'
 import {PLANS,DAY,amount,withdrawalOpen,rankFor} from '../src/rules.js'
 const start=new Date('2026-09-01T15:00:00Z')
 function fixture(){const db=emptyDb();db.rules.confirmed=true;db.users.push({id:'a',name:'Ana',username:'ana',email:'a@test.local',cpf:'52998224725',passwordHash:'',role:'ASSOCIATE',status:'ACTIVE',sponsorId:null,inviteCode:'ana'});entry(db,'a','deposit',10000000,'fund','Teste');return db}
@@ -32,11 +32,11 @@ test('giros antigos inelegíveis são cancelados na consulta e recusados no sort
   assert.throws(()=>draw(db,'a',()=>0),/Nenhum giro disponível/)
   assert.equal(db.spins.at(-1).status,'USED')
 })
-test('catálogo respeita ciclos de 30 dias e NEX de 50 dias',()=>{assert.equal(PLANS.length,9);assert.deepEqual(PLANS.slice(0,3).map(p=>[p.days,p.bps]),[[30,600],[30,650],[30,700]]);assert.deepEqual(PLANS.slice(3,8).map(p=>p.min),[5000,10000,25000,50000,150000])})
+test('catálogo respeita ciclos de 35 dias e NEX de 50 dias',()=>{assert.equal(PLANS.length,9);assert.deepEqual(PLANS.slice(0,3).map(p=>[p.days,p.bps]),[[35,800],[35,900],[35,1000]]);assert.deepEqual(PLANS.slice(3,8).map(p=>p.min),[5000,10000,25000,50000,150000])})
 test('valores monetários rejeitam frações de centavo e entradas inválidas',()=>{for(const v of [null,true,{},'1.001','-1','Infinity','1e5'])assert.throws(()=>amount(v));assert.equal(amount('40,25'),4025)})
-test('ciclo simples: 30 créditos, principal devolvido, sem duplicação nem juros extras',()=>{const db=fixture(),before=balance(db,'a','deposit');const c=subscribe(db,'a','C-1',10000,'deposit',start);assert.equal(accrue(db,new Date(+start+DAY-1)),0);assert.equal(accrue(db,new Date(+start+DAY)),1);assert.equal(balance(db,'a','earnings'),600);accrue(db,new Date(+start+90*DAY));assert.equal(c.paidDays,30);assert.equal(c.status,'CLOSED');assert.equal(balance(db,'a','earnings'),18000);assert.equal(balance(db,'a','deposit'),before);assert.equal(accrue(db,new Date(+start+91*DAY)),0)})
+test('ciclo simples: 35 dias, lucro travado e liberado junto do principal no encerramento',()=>{const db=fixture(),before=balance(db,'a','deposit');const c=subscribe(db,'a','C-1',10000,'deposit',start);assert.equal(accrue(db,new Date(+start+DAY-1)),0);assert.equal(accrue(db,new Date(+start+DAY)),1);assert.equal(balance(db,'a','earnings'),0);assert.equal(balance(db,'a','locked'),800);assert.equal(canWithdraw(db,'a',new Date(+start+DAY)),false);accrue(db,new Date(+start+90*DAY));assert.equal(c.paidDays,35);assert.equal(c.status,'CLOSED');assert.equal(balance(db,'a','locked'),0);assert.equal(balance(db,'a','earnings'),38000);assert.equal(balance(db,'a','deposit'),before-10000);assert.equal(accrue(db,new Date(+start+91*DAY)),0)})
 test('NEX é fixo, 4% por 50 dias, capital conforme configuração capturada',()=>{const db=fixture();assert.throws(()=>subscribe(db,'a','NEX-N1',5100,'deposit',start));db.rules.returnPrincipal=true;const before=balance(db,'a','deposit');const c=subscribe(db,'a','NEX-N1',5000,'deposit',start);db.rules.returnPrincipal=false;accrue(db,new Date(+start+51*DAY));assert.equal(balance(db,'a','earnings'),10000);assert.equal(balance(db,'a','deposit'),before);assert.equal(c.paidDays,50)})
-test('limites inclusivos podem compartilhar valor com escolha explícita do plano',()=>{const db=fixture();subscribe(db,'a','C-1',10000,'deposit',start);subscribe(db,'a','C-2',10000,'deposit',start);assert.throws(()=>subscribe(db,'a','C-1',10001,'deposit',start));assert.throws(()=>subscribe(db,'a','C-3',49999,'deposit',start))})
+test('faixas inclusivas de cada ciclo: C-1 25–100, C-2 150–500, C-3 700–1500',()=>{const db=fixture();subscribe(db,'a','C-1',2500,'deposit',start);subscribe(db,'a','C-1',10000,'deposit',start);assert.throws(()=>subscribe(db,'a','C-1',2400,'deposit',start));assert.throws(()=>subscribe(db,'a','C-1',10001,'deposit',start));subscribe(db,'a','C-2',15000,'deposit',start);subscribe(db,'a','C-2',50000,'deposit',start);assert.throws(()=>subscribe(db,'a','C-2',10000,'deposit',start));subscribe(db,'a','C-3',70000,'deposit',start);subscribe(db,'a','C-3',150000,'deposit',start);assert.throws(()=>subscribe(db,'a','C-3',69999,'deposit',start));assert.throws(()=>subscribe(db,'a','C-3',150001,'deposit',start))})
 test('horários de saque em São Paulo: fronteiras e fins de semana',()=>{assert.equal(withdrawalOpen('earnings',new Date('2026-09-04T14:59:59Z')),false);assert.equal(withdrawalOpen('earnings',new Date('2026-09-04T15:00:00Z')),true);assert.equal(withdrawalOpen('earnings',new Date('2026-09-04T20:59:59Z')),true);assert.equal(withdrawalOpen('earnings',new Date('2026-09-04T21:00:00Z')),false);assert.equal(withdrawalOpen('earnings',new Date('2026-09-05T15:00:00Z')),false);assert.equal(withdrawalOpen('vault',new Date('2026-09-06T15:00:00Z')),false)})
 test('Credcofre: juros compostos acumulam e o resgate integral fica sacável em rendimentos',()=>{
  const db=fixture(),before=balance(db,'a','deposit'),c=subscribe(db,'a','CREDCOFRE',4000,'deposit',start)
@@ -59,9 +59,9 @@ test('limite por usuário e plano bloqueia sem débito e libera vaga no encerram
   const before=structuredClone(db)
   assert.throws(()=>subscribe(db,'a','C-1',2500,'deposit',start),/2\/2/)
   assert.deepEqual(db,before)
-  subscribe(db,'a','C-2',10000,'deposit',start)
+  subscribe(db,'a','C-2',15000,'deposit',start)
   entry(db,'b','deposit',2500,'fund-b','Teste');subscribe(db,'b','C-1',2500,'deposit',start)
-  accrue(db,new Date(+start+30*DAY))
+  accrue(db,new Date(+start+35*DAY))
   subscribe(db,'a','C-1',2500,'deposit',new Date(+start+30*DAY))
   assert.equal(db.contracts.filter(c=>c.userId==='a'&&c.planId==='C-1'&&c.status==='ACTIVE').length,2)
 })

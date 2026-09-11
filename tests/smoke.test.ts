@@ -76,22 +76,23 @@ test('Smoke E2E: fluxos completos no servidor real com gateway simulado', async 
     assert.ok(commission && commission.cents === 5000, 'comissão nível 1 de R$50,00')
     assert.equal(mariaAfter.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 200)
-    assert.equal((await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
+    // Credcofre: não participa da roleta e o resgate libera o capital em Rendimentos
+    const vaultA = await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'deposit'}, maria.token)
+    assert.equal(vaultA.status, 200)
     assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 0)
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
+    assert.equal((await call('/vault/redeem', {contractId: vaultA.body.id}, maria.token)).status, 200)
+    // Reinvestimento com saldo de RENDIMENTOS liberado: 1 giro por operação elegível
     assert.equal((await call('/contracts', {planId: 'C-1', amount: 25, wallet: 'earnings'}, maria.token)).status, 200)
     assert.equal((await call('/state', undefined, maria.token)).body.spins.filter((s: any) => s.status === 'AVAILABLE').length, 1)
-    // Reinvestimento: um novo giro independente por operação elegível
     const spin = await call('/spins/draw', {}, maria.token)
     assert.equal(spin.status, 200)
     assert.ok(spin.body.prize && spin.body.status === 'USED')
     assert.equal((await call('/spins/draw', {}, maria.token)).status, 422)
-    // Credcofre + resgate + janela de saque
-    const vault = await call('/contracts', {planId: 'CREDCOFRE', amount: 25, wallet: 'deposit'}, maria.token)
-    assert.equal((await call('/vault/redeem', {contractId: vault.body.id}, maria.token)).status, 200)
+    // Capital no Credcofre não é sacável: o saque vem do saldo liberado
     const wd = await call('/withdrawals', {wallet: 'vault', amount: 25, pixKey: 'maria@smoke.local'}, maria.token)
-    assert.equal(wd.status, 422, 'capital depositado não pode ser sacado pelo Credcofre')
-    assert.match(wd.body.error, /Somente a Carteira de Rendimentos/)
+    assert.equal(wd.status, 422, 'o capital no Credcofre não é sacável direto')
+    assert.match(wd.body.error, /Somente as Carteiras/)
     // Suporte: abertura e encerramento administrativo
     const ticket = (await call('/tickets', {subject: 'Dúvida sobre rendimento', message: 'Quando cai?'}, maria.token)).body
     const reply = await call(`/tickets/${ticket.id}/reply`, {message: 'Em até 24h úteis.', close: true}, adminToken)

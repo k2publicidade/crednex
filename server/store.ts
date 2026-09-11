@@ -2,7 +2,7 @@ import {initialPlans} from '../src/catalog.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import {neon} from '@neondatabase/serverless'
-import {emptyDb,migrateWalletPolicy,type Db} from './engine.js'
+import {emptyDb,migrateWalletPolicy,migrateLockedYieldPolicy,migrateCyclePlans,type Db} from './engine.js'
 import {validDocument} from './pixpay-withdrawals.js'
 
 // Serialized local transactions; PostgreSQL uses optimistic concurrency across instances.
@@ -94,6 +94,8 @@ export function createStore(seed: () => Db, options?: {databaseUrl?: string; exe
           if(!db.plans)db.plans=initialPlans()
           for(const c of db.contracts){const p=initialPlans().find(p=>p.id===c.planId)??db.plans.find(p=>p.id===c.planId);c.family??=p?.family;c.planName??=p?.name}
           migrateWalletPolicy(db)
+          migrateLockedYieldPolicy(db)
+          migrateCyclePlans(db)
           const result = await fn(db)
           const after = JSON.stringify(db)
           if (before === after) return result // no mutation: nothing to persist
@@ -110,6 +112,8 @@ export function createStore(seed: () => Db, options?: {databaseUrl?: string; exe
       if(!db.plans)db.plans=initialPlans()
       for(const c of db.contracts){const p=initialPlans().find(p=>p.id===c.planId)??db.plans.find(p=>p.id===c.planId);c.family??=p?.family;c.planName??=p?.name}
       migrateWalletPolicy(db)
+      migrateLockedYieldPolicy(db)
+      migrateCyclePlans(db)
       const result = await fn(db)
       const after = JSON.stringify(db)
       if (before !== after || loaded.corrupt || !fs.existsSync(file)) saveFile(db)

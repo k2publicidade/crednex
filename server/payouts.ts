@@ -1,4 +1,4 @@
-import {entry,audit,canWithdraw,type Db} from './engine.js'
+import {entry,audit,type Db} from './engine.js'
 import {amount} from '../src/rules.js'
 import {validatePayout,type PixKeyType} from './pixpay-withdrawals.js'
 
@@ -12,7 +12,12 @@ export function claimPayout(db:Db,id:string,actor:string,_details?:{pixKeyType?:
       : `O pagamento está em processamento na 2PP (${w.payoutState}). Aguarde o callback de confirmação.`
     throw new Error(`${state}${provider}`)
   }
-  if(!canWithdraw(db,w.userId))throw new Error('O participante precisa ter pacote ativo para sacar')
+  // Política atual: saque é o SALDO LIBERADO (rendimento de ciclo encerrado, resgate
+  // do Credcofre e lucro de indicação). Não exige pacote ativo — o requisito é a
+  // conta estar ativa e a reserva ter saído de uma carteira sacável.
+  const user=db.users.find(u=>u.id===w.userId)
+  if(!user||user.role!=='ASSOCIATE'||user.status!=='ACTIVE')throw new Error('O participante precisa estar com a conta ativa para receber o saque')
+  if(w.wallet!=='earnings'&&w.wallet!=='commission')throw new Error('Somente as Carteiras de Rendimentos e de Indicações permitem saques')
   const input=validatePayout({withdrawalId:id,amountCents:w.net,pixKey:w.pixKey,pixKeyType:'cpf',customerDocument:w.customerDocument||w.pixKey})
   w.payoutState='SUBMITTING';w.payoutAt=new Date().toISOString();w.pixKeyType=input.pixKeyType
   audit(db,actor,'PAYOUT_SUBMITTED',{id})
@@ -43,7 +48,11 @@ export function applyPayout(db:Db,id:string,payload:any,webhook=false) {
     w.status='PAID';w.payoutState='COMPLETED';w.processedAt=new Date().toISOString();w.reference=providerId
     audit(db,'gateway','PAYOUT_COMPLETED',{id,providerId,net})
   } else if(webhook&&status==='FAILED') {
-    entry(db,w.userId,w.wallet,w.cents,`${w.id}:refund`,'Saque PIX falhou: saldo devolvido')
+    // Estorna exatamente o que foi reservado: rendimentos e/ou indicações.
+    const backEarnings=w.fromEarnings??(w.wallet==='earnings'?w.cents:0)
+    const backCommission=w.fromCommission??(w.wallet==='commission'?w.cents:0)
+    if(backEarnings>0)entry(db,w.userId,'earnings',backEarnings,`${w.id}:refund`,'Saque PIX falhou: saldo devolvido')
+    if(backCommission>0)entry(db,w.userId,'commission',backCommission,`${w.id}:refund:commission`,'Saque PIX falhou: saldo devolvido (indicação)')
     w.status='REJECTED';w.payoutState='FAILED';w.reference=providerId
     audit(db,'gateway','PAYOUT_FAILED',{id,providerId})
   } else w.payoutState='PROCESSING'

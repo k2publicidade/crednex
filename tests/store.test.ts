@@ -43,9 +43,10 @@ test('banco: seed automático, versão otimista e persistência no PostgreSQL', 
   await store.transaction(db => { audit(db, 'a', 'ACT', {}) })
   const state = fake.state() as {payload: Db; version: number}
   assert.equal(state.version, 3)
-  assert.equal(state.payload.audit.length, 2)
-  assert.equal(state.payload.audit[0].action, 'BOOT')
-  assert.equal(state.payload.audit[1].action, 'ACT')
+  const own = (state.payload.audit as Array<{action: string}>).filter(a => a.action !== 'PLAN_CATALOG_UPDATED')
+  assert.equal(own.length, 2)
+  assert.equal(own[0].action, 'BOOT')
+  assert.equal(own[1].action, 'ACT')
 })
 
 test('banco: payload jsonb em texto também é normalizado', async () => {
@@ -55,7 +56,7 @@ test('banco: payload jsonb em texto também é normalizado', async () => {
   await store.transaction(d => { audit(d, 'y', 'NEW', {}) })
   const state = fake.state() as {payload: Db; version: number}
   assert.equal(state.version, 4)
-  assert.equal(state.payload.audit.length, 2)
+  assert.equal((state.payload.audit as Array<{action: string}>).filter(a => a.action !== 'PLAN_CATALOG_UPDATED').length, 2)
 })
 
 test('banco: conflito concorrente é repetido automaticamente sobre o estado novo', async () => {

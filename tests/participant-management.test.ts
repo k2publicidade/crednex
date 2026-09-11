@@ -57,7 +57,8 @@ test('gestão: cadastro com 8 caracteres, edição, redefinição e suporte com 
     assert.equal((await call(url+'/contracts/'+contract.id,patch,admin.token,'PATCH')).status,200)
     assert.equal((await call('/state',undefined,renewed.token)).body.contracts[0].bps,300)
     assert.equal((await call(url+'/contracts/'+contract.id,{action:'close',refund:true,revision:1,reason:'Encerrar aplicação'},admin.token,'PATCH')).status,200)
-    assert.equal((await call('/state',undefined,renewed.token)).body.balances.deposit,2500)
+    assert.equal((await call('/state',undefined,renewed.token)).body.balances.deposit,0)
+    assert.equal((await call('/state',undefined,renewed.token)).body.balances.earnings,2500)
     assert.equal((await call('/state',undefined,renewed.token)).body.support.whatsappGroupUrl,'')
     const settings={whatsappGroupUrl:'https://chat.whatsapp.com/TestInvite123'}
     assert.equal((await call('/admin/support',settings,renewed.token,'PATCH')).status,403)

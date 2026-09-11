@@ -92,6 +92,8 @@ const labels: Record<string, string> = {
 const walletName: Record<string, string> = {
   deposit: "Carteira de Saldo",
   earnings: "Carteira de Rendimentos",
+  locked: "Rendimento em ciclo (travado)",
+  commission: "Carteira de Indicações",
   vault: "Capital no Credcofre",
 };
 const personName = (u: Row) => {
@@ -946,8 +948,16 @@ export default function App() {
               </div>
               <div className="account-balances">
                 <div>
-                  <span>Rendimentos disponíveis</span>
+                  <span>Rendimentos liberados</span>
                   <strong>{money(balances.earnings)}</strong>
+                </div>
+                <div>
+                  <span>Rendimento em ciclo (liberado no encerramento)</span>
+                  <strong>{money(balances.locked)}</strong>
+                </div>
+                <div>
+                  <span>Lucro de indicação</span>
+                  <strong>{money(balances.commission)}</strong>
                 </div>
                 <div>
                   <span>Saldo para aplicar</span>
@@ -1239,10 +1249,20 @@ export default function App() {
                       detail="Depósitos PIX confirmados"
                     />
                     <Stat
-                      label="Rendimentos disponíveis"
+                      label="Rendimentos liberados"
                       value={money(balances.earnings)}
-                      detail="Ganhos, indicações e benefícios"
+                      detail="Sacável na janela 12h–18h (seg–sex)"
                       accent
+                    />
+                    <Stat
+                      label="Rendimento em ciclo"
+                      value={money(balances.locked)}
+                      detail="Investimento + Lucro liberados no encerramento"
+                    />
+                    <Stat
+                      label="Lucro de indicação"
+                      value={money(balances.commission)}
+                      detail="Sacável durante o ciclo"
                     />
                     <Stat
                       label="Saldo Credcofre"
@@ -1497,12 +1517,16 @@ export default function App() {
                         value={money(value as number)}
                         detail={
                           key === "deposit"
-                            ? "Para comprar pacotes. Não permite saque."
+                            ? "Para aplicar em planos. Não permite saque."
                             : key === "earnings"
-                              ? "Ganhos sacáveis com pacote ativo."
-                              : "Capital aplicado. Resgate para a carteira de origem."
+                              ? "Rendimentos liberados: sacáveis na janela 12h–18h (seg–sex)."
+                              : key === "locked"
+                                ? "Rendimento do ciclo em andamento. Liberado no encerramento junto do investimento."
+                                : key === "commission"
+                                  ? "Lucro de indicação, sacável durante o ciclo."
+                                  : "Capital aplicado. Resgate para a carteira de origem."
                         }
-                        accent={key === "earnings"}
+                        accent={key === "earnings" || key === "commission"}
                       />
                     ))}
                   </div>
@@ -2543,10 +2567,17 @@ function WithdrawalForm({
     >
       <p>
         Disponível para saque: <strong>{money(available)}</strong>
+        <br />
+        <small>
+          Soma de Rendimentos liberados e Lucro de indicação. Na janela 12h–18h
+          (seg–sex), mínimo R$ 40,00 e taxa de 10%.
+        </small>
       </p>
       {!canWithdraw && (
         <div className="alert error" role="status">
-          É necessário ter um pacote ativo ou saldo resgatado do Credcofre.
+          Não há valor liberado para saque. O rendimento do ciclo fica travado e
+          sai no encerramento (Investimento + Lucro). Durante o ciclo fica
+          disponível o lucro de indicação.
         </div>
       )}
       <label>
@@ -2667,7 +2698,8 @@ function RulesEditor({
           </label>
           <small>
             Nos planos Cred-c1, Cred-c2 e Cred-c3, a devolução de capital é
-            sempre aplicada conforme a regra de 30 dias.
+            sempre aplicada conforme a regra do ciclo (35 dias), com o
+            Investimento + Lucro liberados no encerramento.
           </small>
           <label>
             Comissões de indicação sobre

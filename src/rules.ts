@@ -1,9 +1,9 @@
 export const TIMEZONE = 'America/Sao_Paulo'
 export const DAY = 86_400_000
 export const PLANS = [
-  { id:'C-1', family:'cycle', days:30, min:2500, max:10000, bps:600 },
-  { id:'C-2', family:'cycle', days:30, min:10000, max:50000, bps:650 },
-  { id:'C-3', family:'cycle', days:30, min:50000, max:150000, bps:700 },
+  { id:'C-1', family:'cycle', days:35, min:2500, max:10000, bps:800 },
+  { id:'C-2', family:'cycle', days:35, min:15000, max:50000, bps:900 },
+  { id:'C-3', family:'cycle', days:35, min:70000, max:150000, bps:1000 },
   ...[5000,10000,25000,50000,150000].map((value,i)=>({id:`NEX-N${i+1}`,family:'daily',days:50,min:value,max:value,bps:400})),
   {id:'CREDCOFRE',family:'vault',days:0,min:2500,max:100_000_000,bps:200},
 ] as const
@@ -14,7 +14,7 @@ export const RANKS = [
   {name:'Ouro',active:20,total:50,cents:35000},
   {name:'Diamante',active:35,total:100,cents:85000},
 ]
-export type Wallet = 'deposit'|'earnings'|'vault'
+export type Wallet = 'deposit'|'earnings'|'locked'|'commission'|'vault'
 export interface Rules {
   activePlanLimits:Record<string,number>; confirmed:boolean; depositMin:number; withdrawalMin:number; returnPrincipal:boolean; commissionBase:'deposit'|'earnings';
   salaryScope:'direct'|'network'; prizes:{label:string;cents:number;weight:number}[]
@@ -31,7 +31,7 @@ export function amount(value:unknown) {
 export function withdrawalOpen(wallet:Wallet,date=new Date()) {
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:TIMEZONE,weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(date)
   const day=parts.find(p=>p.type==='weekday')?.value, hour=Number(parts.find(p=>p.type==='hour')?.value)
-  return wallet==='earnings'&&hour>=12&&hour<18&&!['Sat','Sun'].includes(day||'')
+  return (wallet==='earnings'||wallet==='commission')&&hour>=12&&hour<18&&!['Sat','Sun'].includes(day||'')
 }
 export const fee=(cents:number)=>Math.round(cents*0.1)
 export function rankFor(active:number,total:number) { return [...RANKS].reverse().find(r=>active>=r.active&&total>=r.total) }
