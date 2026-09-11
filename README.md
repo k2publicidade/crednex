@@ -2,6 +2,23 @@
 
 Aplicação independente derivada da base técnica GOMOVE: React 19, TypeScript, Vite, Express, cliente de API e integração PIXPAY. O portal e o motor financeiro foram adaptados para as regras CREDNEX. Nenhum banco, saldo, conta, sessão ou segredo da GOMOVE é reutilizado.
 
+## Estrutura do código
+
+```
+server/     backend Express + motor financeiro (TypeScript, sem ORM)
+  engine.ts   regras de dinheiro: planos, carteiras, saques, comissões, roleta
+  store.ts    persistência (arquivo .data/crednex.json ou PostgreSQL) + migrações
+  index.ts    rotas HTTP da API
+  catalog.ts  catálogo de planos editável pelo admin
+  payouts.ts  envio de saques PIX pela 2PP
+src/        frontend React (App.tsx concentra as telas; rules.ts tem as regras base)
+tests/      suíte automatizada (node:test + tsx)
+scripts/    setup-local.mjs (primeiro .env) e reset-local.mjs (banco zerado)
+deploy/     systemd, Nginx, backup e instalador de release para o servidor
+```
+
+Comandos: `npm run dev` (portais 5180/4020), `npm test`, `npm run build`, `npm start` (interface + API em 4020). O ponto de entrada do backend é `server/index.ts`; o compilado sai em `build/crednex-server.cjs`.
+
 ## Executar
 
 ```powershell
@@ -35,24 +52,24 @@ Na versão compilada, interface e API ficam em http://localhost:4020.
 
 ## Regras implementadas e decisões explícitas
 
-A mensagem do usuário prevalece sobre o PDF. O PDF contém ciclos antigos de 30 dias e taxas diferentes.
+A mensagem do usuário prevalece sobre o PDF de apresentação (o PDF traz ciclos antigos, de 30 dias e taxas diferentes).
 
 | Modalidade | Valor | Prazo | Taxa simples diária |
 |---|---|---|---|
-| Cred-c1 | R$25 a R$100 | 30 dias | 6% |
-| Cred-c2 | R$100 a R$500 | 30 dias | 6,5% |
-| Cred-c3 | R$500 a R$1.500 | 30 dias | 7% |
+| Cred-c1 | R$25 a R$100 | 35 dias | 8% |
+| Cred-c2 | R$150 a R$500 | 35 dias | 9% |
+| Cred-c3 | R$700 a R$1.500 | 35 dias | 10% |
 | NEX-N1 a N5 | R$50 / R$100 / R$250 / R$500 / R$1.500 | 50 dias | 4% |
 | Credcofre | A partir de R$25 | Sem prazo fixo | 2% |
 
 - R$40 é o mínimo para depósitos PIX. O saldo permite contratar aplicações de R$25.
-- Os intervalos dos ciclos são inclusivos. Em R$100 ou R$500, vale o plano escolhido pelo participante.
+- Os intervalos dos ciclos são inclusivos (R$25 a R$100, R$150 a R$500 e R$700 a R$1.500).
 - Rendimentos em centavos, arredondados para baixo por parcela, a cada 24 horas completas desde a contratação. Ciclos e NEX usam juros simples; o Credcofre usa juros compostos. Não há crédito proporcional por horas.
-- Os ciclos devolvem o capital à carteira de rendimentos ao encerrar o dia 30, disponível para saque ou reinvestimento. O lucro é creditado diariamente na carteira de rendimentos.
-- **NEX:** a devolução do capital não foi definida pelo usuário; o administrador escolhe antes de liberar aplicações. A configuração inicial está desativada. O contrato captura a configuração vigente.
+- **Ciclos (Cred-c1/c2/c3):** o rendimento diário fica travado na carteira "Rendimento em ciclo" durante os 35 dias. No encerramento o sistema libera, de uma vez, o **Investimento + Lucro** na Carteira de Rendimentos — é aí que o valor passa a ser sacável.
+- **NEX:** a devolução do capital não foi definida pelo usuário; o administrador escolhe antes de liberar aplicações. A configuração inicial está desativada. O contrato captura a configuração vigente. Nos NEX o rendimento diário entra direto na Carteira de Rendimentos.
 - Credcofre: o saldo fica bloqueado enquanto a aplicação rende, com juros compostos creditados no próprio cofre a cada 24 horas. O resgate encerra a aplicação e transfere capital e juros para a Carteira de Rendimentos, liberando esse valor para saque. Não há resgate parcial; aplicações podem ser abertas separadamente.
-- Saques: de segunda a sexta, na janela `[12:00,18:00)` em `America/Sao_Paulo`; o resgate interno do Credcofre pode ser feito a qualquer momento. Taxa de 10% sobre o valor bruto, arredondada para o centavo mais próximo. O saldo bruto é reservado na solicitação; recusa devolve uma única vez.
-- Comissão inicial configurada sobre o valor de cada aplicação confirmada, incluindo reinvestimentos e Credcofre; alternativa sobre os rendimentos. Níveis 10%, 3% e 2%, sem compressão: um nível inelegível não transfere sua comissão. Beneficiário recebe a comissão como participante ativo (conta ativa), independentemente de plano; para sacar a bonificação, é preciso ter plano ativo. Essas escolhas aguardam revisão administrativa porque o usuário não definiu a base.
+- Saques: de segunda a sexta, na janela `[12:00,18:00)` em `America/Sao_Paulo`; o resgate interno do Credcofre pode ser feito a qualquer momento. Taxa de 10% sobre o valor bruto, arredondada para o centavo mais próximo. O saque usa apenas o **saldo liberado** (Carteira de Rendimentos + Carteira de Indicações) e não exige mais pacote ativo. O saldo bruto é reservado na solicitação; recusa ou falha do PIX devolve uma única vez, separando o que veio de rendimentos e o que veio de indicações.
+- Comissão inicial configurada sobre o valor de cada aplicação confirmada, incluindo reinvestimentos e Credcofre; alternativa sobre os rendimentos. Níveis 10%, 3% e 2%, sem compressão: um nível inelegível não transfere sua comissão. Beneficiário recebe a comissão como participante ativo (conta ativa), independentemente de plano. A comissão entra na **Carteira de Indicações** e é sacável durante o ciclo, sem exigir plano ativo. Essa escolha aguarda revisão administrativa porque o usuário não definiu a base.
 - Salário inicial por **indicados diretos**, opção de rede inteira no painel. Ativo = conta ativa com aplicação vigente. Maior faixa elegível no processamento, um pagamento por mês civil; não há complemento automático por promoção no mesmo mês. Bronze R$75 (5/10), Prata R$150 (10/25), Ouro R$350 (20/50), Diamante R$850 (35/100). Contagem e calendário são decisões operacionais explicitadas, ainda sujeitas à definição da empresa.
 - Cada indicação direta concluída e cada reinvestimento com saldo de rendimentos nos planos Ciclo ou Rendimento Diário libera um giro. CredCofre não gera giros. Giros antigos fora dessa regra ficam cancelados; resultados já utilizados permanecem no histórico. Prêmios e probabilidades aguardam cadastro; nenhum prêmio foi inventado.
 - Suporte: segunda a sexta, 12h–18h; sábado e domingo, 12h–15h. Abertura de chamados disponível a qualquer hora.
@@ -81,7 +98,7 @@ Testes automatizados de catálogo, dinheiro, ciclos, NEX, juros simples, princip
 
 Em **Regras e roleta**, o administrador define o máximo de aplicações ativas por participante em cada plano (padrão: 2; inteiro positivo). A alteração vale para novas contratações e preserva contratos existentes. A API verifica o limite dentro da transação, inclusive em pedidos simultâneos. Encerrar um ciclo libera uma vaga; no Credcofre, o resgate libera a vaga.
 
-Os cartões e a confirmação exibem a ocupação atual. A confirmação calcula a projeção conforme o valor informado, usando o mesmo arredondamento diário do extrato. O total do período soma os rendimentos diários e o capital devolvido quando aplicável; não representa um crédito único no vencimento. As aplicações exibem dias restantes, vencimento e retorno conforme as condições contratadas. Exemplo: R$55 no Cred-c1 = R$3,30/dia, R$99 em rendimentos em 30 dias e R$55 de capital, total bruto de R$154. O Credcofre não apresenta total final fixo.
+Os cartões e a confirmação exibem a ocupação atual. A confirmação calcula a projeção conforme o valor informado, usando o mesmo arredondamento diário do extrato. O total do período soma os rendimentos diários e o capital devolvido quando aplicável; não representa um crédito único no vencimento. As aplicações exibem dias restantes, vencimento e retorno conforme as condições contratadas. Exemplo: R$55 no Cred-c1 = R$4,40/dia; em 35 dias são R$154,00 de lucro mais R$55,00 de capital, total bruto de R$209,00 liberado no encerramento do ciclo. O Credcofre não apresenta total final fixo.
 
 As novas condições dos ciclos valem para novas contratações. Contratos existentes continuam usando a taxa, duração e capital registrados na contratação. Os identificadores internos C-1/C-2/C-3 são preservados para manter histórico e limites.
 
@@ -89,15 +106,24 @@ Participantes: busca, edição de nome/usuário/e-mail/chave PIX, saldos e hist�
 
 ## Carteiras e saques
 
-- Carteira de Saldo (`deposit`): recebe valores destinados a compras de pacotes, sem saque. Tanto o PIX quanto o crédito administrativo permitem escolher Rendimentos como destino alternativo.
-- Carteira de Rendimentos (`earnings`): indicações, bônus, salários, roleta e rendimentos de todos os planos, inclusive Credcofre. Reinvestimentos com ganhos continuam permitidos.
-- Credcofre (`vault`): guarda o capital aplicado e seus juros compostos. Resgatar transfere o total para Rendimentos. A devolução de principal dos ciclos e NEX continua seguindo a origem do capital.
-- Solicitar um saque exige conta ativa e pacote ativo não vencido, com exceção do saldo liberado por um resgate do Credcofre. Só `earnings` é aceito; permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar libera a reserva mesmo sem pacote ativo.
+Cinco carteiras (`Wallet` em `src/rules.ts`):
 
-A migração `walletPolicyVersion=1` preserva lançamentos históricos e saques pagos. Reconstrói a origem do capital por compra/devolução, adiciona transferências auditadas do principal remanescente para Saldo e move ganhos antigos do Credcofre para Rendimentos. Em saldos históricos mistos, débitos comuns consomem ganhos primeiro; reinvestimentos consomem o principal restrito primeiro, preservando sua origem no contrato. Reservas antigas do Credcofre ou incompatíveis com o capital restrito são recusadas e devolvidas para nova solicitação. A migração executa uma vez dentro da transação do banco.
+- Carteira de Saldo (`deposit`): recebe valores destinados a compras de pacotes, sem saque. Tanto o PIX quanto o crédito administrativo permitem escolher Rendimentos como destino alternativo.
+- Carteira de Rendimentos (`earnings`): é o **saldo liberado para saque** — rendimento de ciclo encerrado (Investimento + Lucro), resgate do Credcofre, salários, roleta e demais créditos. Reinvestimentos com esse saldo continuam permitidos e liberam giro nos planos Ciclo e NEX.
+- Rendimento em ciclo (`locked`): acumula o rendimento diário dos ciclos Cred-c1/c2/c3 enquanto o contrato está ativo. Não é sacável e não entra no limite de saque; é liberado para `earnings` no encerramento.
+- Carteira de Indicações (`commission`): recebe as comissões de 10%, 3% e 2%. É sacável durante o ciclo e soma-se aos rendimentos no limite de saque (o pedido registra quanto saiu de cada carteira).
+- Credcofre (`vault`): guarda o capital aplicado e seus juros compostos. Resgatar transfere o total para Rendimentos. A devolução de principal dos NEX continua seguindo a origem do capital.
+
+Solicitar um saque exige conta ativa e saldo liberado (Rendimentos + Indicações); não exige pacote ativo. Permanecem a taxa de 10% e a janela de segunda a sexta, 12h–18h de Brasília. Recusar ou falhar o pagamento libera a reserva pela mesma divisão de origem, mesmo sem pacote ativo.
+
+Migrações automáticas de dados (executam uma única vez, dentro da transação do banco):
+
+- `walletPolicyVersion=1`: separa origem do capital e rendimentos; preserva lançamentos históricos e saques pagos. Reconstrói a origem do capital por compra/devolução, adiciona transferências auditadas do principal remanescente para Saldo e move ganhos antigos do Credcofre para Rendimentos. Reservas antigas do Credcofre ou incompatíveis com o capital restrito são recusadas e devolvidas para nova solicitação.
+- `yieldPolicyVersion=1`: separa o lucro de indicação (`commission`) e trava o rendimento dos ciclos em andamento (`locked`), movendo o que já estava em Rendimentos. A soma por carteira é conservada e nenhum saldo fica negativo.
+- `plansRev=2`: atualiza no catálogo do banco os parâmetros dos ciclos (35 dias, 8%/9%/10%, faixas de valor).
 
 ### Contratações e comissões
 
 A opção administrativa de liberar aplicações precisa estar ativa (`rules.confirmed`). Para pausar compras já ativas, a API exige `pauseConfirmation: "PAUSAR COMPRAS"`; a interface alerta sobre o bloqueio e solicita essa confirmação, evitando pausas acidentais ao editar regras. Uma pausa não altera saldos nem contratos.
 
-O checkout envia `requestId` por tentativa: repetir a mesma compra retorna o contrato existente sem repetir débito ou comissões. Reutilizar a chave com plano, valor ou carteira diferentes é rejeitado. O teste `purchase-flow.test.ts` verifica o fluxo PIX confirmado → contrato → comissões de 10%, 3% e 2% na Carteira de Rendimentos dos beneficiários elegíveis (conta e pacote ativos), incluindo chamadas concorrentes e callback duplicado. Depósito isolado não gera comissão quando a base configurada é aplicação.
+O checkout envia `requestId` por tentativa: repetir a mesma compra retorna o contrato existente sem repetir débito ou comissões. Reutilizar a chave com plano, valor ou carteira diferentes é rejeitado. O teste `purchase-flow.test.ts` verifica o fluxo PIX confirmado → contrato → comissões de 10%, 3% e 2% na Carteira de Indicações dos beneficiários elegíveis (conta ativa), incluindo chamadas concorrentes e callback duplicado. Depósito isolado não gera comissão quando a base configurada é aplicação.
